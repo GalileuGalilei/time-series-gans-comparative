@@ -19,7 +19,7 @@ cls_dit = {'Non-Ectopic Beats':0, 'Superventrical Ectopic':1, 'Ventricular Beats
                                                 'Unknown':3, 'Fusion Beats':4}
 
 class mitbih_train(Dataset):
-    def __init__(self, filename='./mitbih_train.csv', n_samples=20000, oneD=False):
+    def __init__(self, filename='data/mitbih_train.csv', n_samples=20000, oneD=False):
         data_train = pd.read_csv(filename, header=None)
         
         # making the class labels for our dataset
@@ -63,7 +63,7 @@ class mitbih_train(Dataset):
     
     
 class mitbih_test(Dataset):
-    def __init__(self, filename='./mitbih_test.csv', n_samples=1000, oneD=False):
+    def __init__(self, filename='data/mitbih_test.csv', n_samples=1000, oneD=False):
         data_test = pd.read_csv(filename, header=None)
         
         # making the class labels for our dataset
