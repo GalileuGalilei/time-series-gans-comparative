@@ -7,6 +7,7 @@ import sys
 from tqdm import tqdm 
 from scipy.stats import mode  # Para calcular a moda
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
 import torch 
 import torch.nn as nn
@@ -21,47 +22,62 @@ cls_dit = {'Non-Ectopic Beats':0, 'Superventrical Ectopic':1, 'Ventricular Beats
                                                 'Unknown':3, 'Fusion Beats':4}
 
 class load_and_resample_data(Dataset):
-    def __init__(self, filename, label_column, seq_len, n_samples=20000):
-
+    def __init__(self, filename, label_column, seq_len, n_samples=10000):
         assert n_samples % seq_len == 0, "O número de linhas deve ser divisível por seq_len"
 
         data_train = pd.read_csv(filename)
-        data_train = resample(data_train, n_samples=n_samples, random_state=123, replace=True)
+
+        # apenas as colunas flowm flow packets/s e timestamp
+        data_train = data_train[['Flow Packets/s', 'Flow Bytes/s', 'Timestamp', label_column]]
+
+        # Converte 'Timestamp' para datetime com o formato específico
+        data_train['Timestamp'] = pd.to_datetime(data_train['Timestamp'], errors='coerce')
+
+        # Define 'Timestamp' como índice
+        data_train.set_index('Timestamp', inplace=True)
+
+        #sort pelo timestamp
+        data_train.sort_index(inplace=True)
 
         # Convertendo as classes para números
-        labels_names = data_train[label_column].unique()
-        data_train[label_column].replace(labels_names, [i for i in range(len(labels_names))], inplace=True)
+        data_train[label_column] = pd.Categorical(data_train[label_column]).codes
 
         Y_train = data_train[label_column]
         X_train = data_train.drop([label_column], axis=1)
 
-        #temporario
-        keep_columns_with_names = ['Flow Bytes/s']
-        X_train = X_train[keep_columns_with_names]
-
-
-        #drop non-numeric columns
+        # Drop de colunas não numéricas
         X_train = X_train.apply(pd.to_numeric, errors='coerce')
         X_train = X_train.select_dtypes(include=[np.number])
-        
-        #standardize, testes ainda
-        scaler = StandardScaler()
+
+        # resample usando a media do X_train e o ultimo label
+        X_train = X_train.resample('20S').sum()
+        Y_train = Y_train.resample('20S').last()
+
+        #y_train with nan values, replace for 0
+        Y_train.fillna(0, inplace=True)
+
+        # remove os ultimos valores para fechar n_samples
+        X_train = X_train.iloc[:n_samples]
+        Y_train = Y_train.iloc[:n_samples]
+
+        # Normalização usando MinMaxScaler
+        scaler = MinMaxScaler()
         self.X_train = scaler.fit_transform(X_train)
 
-        # (batch, 1, colunas, seq_len)
-        #self.X_train = X_train.values
+        # Garantir que o número de amostras seja divisível por seq_len
+        self.X_train = self.X_train[:len(self.X_train) // seq_len * seq_len]
         self.X_train = self.X_train.reshape(self.X_train.shape[0] // seq_len, seq_len, self.X_train.shape[1])
         self.X_train = np.transpose(self.X_train, (0, 2, 1))
-        self.X_train = np.expand_dims(self.X_train, axis=2) 
+        self.X_train = np.expand_dims(self.X_train, axis=2)  # (batch, seq_len, colunas, 1)
 
-        # (batch, seq_len)
+        # (batch, seq_len) - último valor da sequência
         self.Y_train = Y_train.values
-        self.Y_train = self.Y_train.reshape(self.Y_train.shape[0] // seq_len, seq_len)[:,-1]
-            
+        self.Y_train = self.Y_train.reshape(self.Y_train.shape[0] // seq_len, seq_len)[:, -1]
+
         print(f'X_train shape is {self.X_train.shape}')
         print(f'y_train shape is {self.Y_train.shape}')
 
-        #print how mush of each class we have
+        # Imprimir quantidades de amostras por classe
         for i in range(len(np.unique(self.Y_train))):
             print(f'Class {i} has {np.sum(self.Y_train == i)} samples')
         

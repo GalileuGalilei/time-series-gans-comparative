@@ -92,8 +92,8 @@ def main_worker(gpu, ngpus_per_node, args):
             nn.init.constant_(m.bias.data, 0.0)
 
     #load dataset
-    seq_len = 100
-    train_set = load_and_resample_data("cyberdata/train.csv", "Stage", seq_len, 60000)
+    seq_len = 50
+    train_set = load_and_resample_data("cyberdata/train.csv", "Stage", seq_len, 10000)
     train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers)
 
     num_channels = train_set.X_train.shape[1]
