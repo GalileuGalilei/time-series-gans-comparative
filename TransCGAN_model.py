@@ -185,6 +185,7 @@ class PatchEmbedding_Linear(nn.Module):
         self.projection = nn.Sequential(
             Rearrange('b c (h s1) (w s2) -> b (h w) (s1 s2 c)',s1 = 1, s2 = patch_size),
             nn.Linear(patch_size*in_channels, emb_size)
+            #nn.Linear(patch_size, emb_size)
         )
         self.cls_token = nn.Parameter(torch.randn(1, 1, emb_size))
         self.positions = nn.Parameter(torch.randn((seq_length // patch_size) + 1, emb_size))
@@ -206,7 +207,7 @@ class PatchEmbedding_Linear(nn.Module):
 class Discriminator(nn.Sequential):
     def __init__(self, 
                  in_channels=3,
-                 patch_size=15,
+                 patch_size=42,
                  data_emb_size=50,
                  label_emb_size=10,
                  seq_length = 150,

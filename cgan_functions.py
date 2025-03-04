@@ -48,7 +48,7 @@ def gradient_penalty(y, x, args):
                                create_graph=True,
                                only_inputs=True)[0]
 
-    dydx = dydx.view(dydx.size(0), -1)
+    dydx = dydx.reshape(dydx.size(0), -1)
     dydx_l2norm = torch.sqrt(torch.sum(dydx**2, dim=1))
     return torch.mean((dydx_l2norm-1)**2)    
     
@@ -75,7 +75,7 @@ def compute_gradient_penalty(D, real_samples, fake_samples, phi):
 
 
 def train(args, gen_net: nn.Module, dis_net: nn.Module, gen_optimizer, dis_optimizer, gen_avg_param, train_loader,
-          epoch, writer_dict, fixed_z, schedulers=None):
+          epoch, writer_dict, fixed_z, num_classes, num_channels, schedulers=None):
     writer = writer_dict['writer']
     gen_step = 0
     cls_criterion = nn.CrossEntropyLoss()
@@ -97,7 +97,7 @@ def train(args, gen_net: nn.Module, dis_net: nn.Module, gen_optimizer, dis_optim
 
         # Sample noise as generator input
         noise = torch.cuda.FloatTensor(np.random.normal(0, 1, (real_imgs.shape[0], args.latent_dim))).cuda(args.gpu, non_blocking=True)
-        fake_img_labels = torch.randint(0, 5, (real_imgs.shape[0],)).cuda(args.gpu, non_blocking=True)
+        fake_img_labels = torch.randint(0, num_classes , (real_imgs.shape[0],)).cuda(args.gpu, non_blocking=True)
 
         # ---------------------
         #  Train Discriminator
