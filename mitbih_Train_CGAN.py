@@ -15,6 +15,10 @@ args = parse_args()
 # Definir variáveis de ambiente apenas para o subprocesso
 env = os.environ.copy()
 env["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
+#debug
+env["CUDA_LAUNCH_BLOCKING"] = "1"
+env["TORCH_USE_CUDA_DSA"] = "1"
+
 
 # Construir a lista de argumentos
 command = [
@@ -40,15 +44,15 @@ command = [
     "--latent_dim", "100",
     "--gf_dim", "1024",
     "--num_workers", "8",
-    "--g_lr", "0.000035",
-    "--d_lr", "0.0001",
+    "--g_lr", "0.0001",
+    "--d_lr", "0.0003",
     "--optimizer", "adam",
     "--loss", "lsgan",
     "--wd", "1e-3",
     "--beta1", "0.9",
     "--beta2", "0.999",
     "--phi", "1",
-    "--batch_size", "1",
+    "--batch_size", "4",
     "--num_eval_imgs", "50000",
     "--init_type", "xavier_uniform",
     "--n_critic", "1",

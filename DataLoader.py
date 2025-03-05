@@ -50,8 +50,12 @@ class load_and_resample_data(Dataset):
         X_train = X_train.select_dtypes(include=[np.number])
 
         # resample usando a media do X_train e o ultimo label
-        X_train = X_train.resample('20S').sum()
-        Y_train = Y_train.resample('20S').last()
+        X_train = X_train.resample('1S').agg('mean')
+        Y_train = Y_train.resample('1S').last()
+
+        #remove nan values
+        X_train.dropna(inplace=True)
+        Y_train.dropna(inplace=True)
 
         #y_train with nan values, replace for 0
         Y_train.fillna(0, inplace=True)
@@ -61,7 +65,7 @@ class load_and_resample_data(Dataset):
         Y_train = Y_train.iloc[:n_samples]
 
         # Normalização usando MinMaxScaler
-        scaler = MinMaxScaler()
+        scaler = StandardScaler()
         self.X_train = scaler.fit_transform(X_train)
 
         # Garantir que o número de amostras seja divisível por seq_len
