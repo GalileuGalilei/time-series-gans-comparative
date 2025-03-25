@@ -2,11 +2,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import cfg
-from DataLoader import *
-from TransCGAN_model import * 
-from cgan_functions import train, save_samples, LinearLrDecay, load_params, copy_params, cur_stages
-from utils import set_log_dir, save_checkpoint, create_logger
+from gan import cfg
+from data.DataLoader import load_and_preprocess_data
+from gan.TransCGAN_model import *
+from gan.cgan_functions import *
+from gan import set_log_dir, save_checkpoint, create_logger
 
 import torch
 import torch.multiprocessing as mp
@@ -19,7 +19,7 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from copy import deepcopy
-from adamw import AdamW
+from gan.adamw import AdamW
 import random 
 import matplotlib.pyplot as plt
 import io
@@ -93,7 +93,8 @@ def main_worker(gpu, ngpus_per_node, args):
 
     #load dataset
     seq_len = 20
-    train_set = load_and_resample_data("cyberdata/train.csv", "Stage", seq_len, 20000)
+    features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
+    train_set = load_and_preprocess_data("data/train.csv", features_to_train, "Stage", seq_len, 20000)
     train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers)
 
     num_channels = train_set.X_train.shape[1]
@@ -232,28 +233,28 @@ def main_worker(gpu, ngpus_per_node, args):
             load_params(gen_net, backup_param, args)
 
         # plot synthetic data
-        gen_net.eval()
-        plot_buf = gen_plot(gen_net, epoch)
-        image = PIL.Image.open(plot_buf)
-        image = ToTensor()(image).unsqueeze(0)
-        writer.add_image('Image', image[0], epoch)
-        is_best = False
-        avg_gen_net = deepcopy(gen_net)
-        load_params(avg_gen_net, gen_avg_param, args)
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'gen_model': args.gen_model,
-            'dis_model': args.dis_model,
-            'gen_state_dict': gen_net.module.state_dict(),
-            'dis_state_dict': dis_net.module.state_dict(),
-            'avg_gen_state_dict': avg_gen_net.module.state_dict(),
-            'gen_optimizer': gen_optimizer.state_dict(),
-            'dis_optimizer': dis_optimizer.state_dict(),
-            'best_fid': best_fid,
-            'path_helper': args.path_helper,
-            'fixed_z': fixed_z
-        }, is_best, args.path_helper['ckpt_path'], filename="checkpoint")
-        del avg_gen_net
+        #gen_net.eval()
+        #plot_buf = gen_plot(gen_net, epoch)
+        #image = PIL.Image.open(plot_buf)
+        #image = ToTensor()(image).unsqueeze(0)
+        #writer.add_image('Image', image[0], epoch)
+        #is_best = False
+        #avg_gen_net = deepcopy(gen_net)
+        #load_params(avg_gen_net, gen_avg_param, args)
+        #save_checkpoint({
+        #    'epoch': epoch + 1,
+        #    'gen_model': args.gen_model,
+        #    'dis_model': args.dis_model,
+        #    'gen_state_dict': gen_net.module.state_dict(),
+        #    'dis_state_dict': dis_net.module.state_dict(),
+        #    'avg_gen_state_dict': avg_gen_net.module.state_dict(),
+        #    'gen_optimizer': gen_optimizer.state_dict(),
+        #    'dis_optimizer': dis_optimizer.state_dict(),
+        #    'best_fid': best_fid,
+        #    'path_helper': args.path_helper,
+        #    'fixed_z': fixed_z
+        #}, is_best, args.path_helper['ckpt_path'], filename="checkpoint")
+        #del avg_gen_net
         
 def gen_plot(gen_net, epoch):
     """Create a pyplot plot and save to buffer."""
