@@ -37,12 +37,12 @@ def save_fake_samples(fake_sigs, fake_labels, output_path, columns=None):
 Recreate the dataset using the generator model following the order of the original dataset labels
 """
 def recreate_dataset(data_path, model_path, features_names, seq_len):
-    train_set = load_and_preprocess_data(data_path, features_names, "Stage", seq_len, 20000) 
+    train_set = load_and_preprocess_data(data_path, features_names, "Stage", seq_len, 16000) 
 
     y_train = train_set.Y_train
     x_train = train_set.X_train 
 
-    num_classes = len(torch.unique(y_train))
+    num_classes = len(np.unique(y_train))
     num_channels = x_train.shape[1]
 
     gen_net = load_model_generator(seq_len=seq_len, num_channels=num_channels, num_classes=num_classes, model_path=model_path)
