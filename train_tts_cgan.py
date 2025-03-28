@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#https://github.com/MadaneA/MTS-CGAN
 
 import os
 import argparse
