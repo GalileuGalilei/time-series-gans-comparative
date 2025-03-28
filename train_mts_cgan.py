@@ -23,13 +23,13 @@ env["TORCH_USE_CUDA_DSA"] = "1"
 
 # Construir a lista de argumentos
 command = [
-    "python", "trainTTSCGAN.py",
+    "python", "trainMTSCGAN.py",
     "-gen_bs", "32",
     "-dis_bs", "32",
     "--dist-url", "tcp://localhost:4321",
     "--dist-backend", "nccl",
     "--world-size", "1",
-    "--max_epoch", "80",
+    "--max_epoch", "40",
     "--rank", args.rank,
     "--dataset", "mitbith",
     "--bottom_width", "8",
@@ -53,7 +53,7 @@ command = [
     "--beta1", "0.9",
     "--beta2", "0.999",
     "--phi", "1",
-    "--batch_size", "4",
+    "--batch_size", "12",
     "--num_eval_imgs", "50000",
     "--init_type", "xavier_uniform",
     "--n_critic", "1",
@@ -66,7 +66,7 @@ command = [
     "--ema_warmup", "0.1",
     "--ema", "0.9999",
     "--diff_aug", "translation,cutout,color",
-    "--exp_name", "mitbithCGAN"
+    "--exp_name", "APTCGAN",
 ]
 
 # Executar o comando

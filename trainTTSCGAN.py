@@ -1,12 +1,13 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import warnings
 
-from gan import cfg
+from tts_cgan import cfg
 from data.DataLoader import load_and_preprocess_data
-from gan.TransCGAN_model import *
-from gan.cgan_functions import *
-from gan import set_log_dir, save_checkpoint, create_logger
+from tts_cgan.TransCGAN_model import *
+from tts_cgan.cgan_functions import *
+from tts_cgan import set_log_dir, save_checkpoint, create_logger
 
 import torch
 import torch.multiprocessing as mp
@@ -19,7 +20,7 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from copy import deepcopy
-from gan.adamw import AdamW
+from tts_cgan.adamw import AdamW
 import random 
 import matplotlib.pyplot as plt
 import io

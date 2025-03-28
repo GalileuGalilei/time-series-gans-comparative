@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from imageio import imsave
-from gan.utils import make_grid, save_image
+from tts_cgan.utils import make_grid, save_image
 from tqdm import tqdm
 import cv2
 

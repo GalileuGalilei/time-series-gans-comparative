@@ -1,12 +1,12 @@
-from gan.TransCGAN_model import *
+from mts_cgan.MTSCGAN import *
 import pandas as pd
 from data.DataLoader import *
 import numpy as np
 
 def load_model_generator(seq_len, num_channels, num_classes, model_path):
     # Load the model
-    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=10, 
-                    label_embed_dim=10 ,depth=3, num_heads=5, 
+    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100,
+                    depth=3, num_heads=5, 
                     forward_drop_rate=0.5, attn_drop_rate=0.5)
     
     CGAN_ckp = torch.load(model_path)
@@ -16,7 +16,7 @@ def load_model_generator(seq_len, num_channels, num_classes, model_path):
 
 def generate_fake_samples(gen_net, fake_labels):
     new_samples = len(fake_labels)
-    fake_labels = torch.tensor(fake_labels, dtype=torch.long)
+    fake_labels = torch.tensor(fake_labels, dtype=torch.float)
 
     fake_noise = torch.FloatTensor(np.random.normal(0, 2, (new_samples, 100)))
     fake_sigs = gen_net(fake_noise, fake_labels).to('cpu').detach().numpy()
@@ -37,7 +37,7 @@ def save_fake_samples(fake_sigs, fake_labels, output_path, columns=None):
 Recreate the dataset using the generator model following the order of the original dataset labels
 """
 def recreate_dataset(data_path, model_path, features_names, seq_len):
-    train_set = load_and_preprocess_data(data_path, features_names, "Stage", seq_len, 16000) 
+    train_set = load_and_preprocess_data(data_path, features_names, "Stage", seq_len, 18000) 
 
     y_train = train_set.Y_train
     x_train = train_set.X_train 
