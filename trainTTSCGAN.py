@@ -93,13 +93,13 @@ def main_worker(gpu, ngpus_per_node, args):
             nn.init.constant_(m.bias.data, 0.0)
 
     #load dataset
-    seq_len = 20
+    seq_len = 30
     features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'Flow Bytes/s', 'Timestamp']
-    train_set = load_and_preprocess_data("data/train.csv", features_to_train, "Stage", seq_len, 16000)
+    train_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, 57000)
     train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers)
 
-    num_channels = train_set.X_train.shape[1]
-    num_classes = len(np.unique(train_set.Y_train))
+    num_channels = train_set.X_set.shape[1]
+    num_classes = max(train_set.Y_set) + 1
 
     # import network
     gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=10, 
@@ -182,6 +182,7 @@ def main_worker(gpu, ngpus_per_node, args):
         assert os.path.exists(args.load_path)
         checkpoint_file = os.path.join(args.load_path)
         assert os.path.exists(checkpoint_file)
+    
         loc = 'cuda:{}'.format(args.gpu)
         checkpoint = torch.load(checkpoint_file, map_location=loc)
         start_epoch = checkpoint['epoch']

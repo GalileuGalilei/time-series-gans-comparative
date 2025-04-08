@@ -18,7 +18,7 @@ def generate_fake_samples(gen_net, fake_labels):
     new_samples = len(fake_labels)
     fake_labels = torch.tensor(fake_labels, dtype=torch.long)
 
-    fake_noise = torch.FloatTensor(np.random.normal(0, 2, (new_samples, 100)))
+    fake_noise = torch.FloatTensor(np.random.normal(0, 1, (new_samples, 100)))
     fake_sigs = gen_net(fake_noise, fake_labels).to('cpu').detach().numpy()
 
     return fake_sigs
@@ -37,18 +37,87 @@ def save_fake_samples(fake_sigs, fake_labels, output_path, columns=None):
 Recreate the dataset using the generator model following the order of the original dataset labels
 """
 def recreate_dataset(data_path, model_path, features_names, seq_len):
-    train_set = load_and_preprocess_data(data_path, features_names, "Stage", seq_len, 16000) 
+    train_set = load_and_preprocess_data(data_path, features_names, "Stage", seq_len, is_train=True) 
 
-    y_train = train_set.Y_train
-    x_train = train_set.X_train 
+    y_train = train_set.Y_set
+    x_train = train_set.X_set 
 
-    num_classes = len(np.unique(y_train))
+    num_classes = max(y_train) + 1
     num_channels = x_train.shape[1]
 
     gen_net = load_model_generator(seq_len=seq_len, num_channels=num_channels, num_classes=num_classes, model_path=model_path)
     fake_sigs = generate_fake_samples(gen_net, y_train)
 
-    return fake_sigs, y_train
+    train_set = SynthDataset(fake_sigs, y_train)
+
+    return train_set
+
+
+def recreate_increased_dataset(data_path, model_path, features_names, seq_len, increase_multiplier):
+    train_set = load_and_preprocess_data(data_path, features_names, "Stage", seq_len, is_train=True) 
+
+    y_train = train_set.Y_set
+    x_train = train_set.X_set 
+
+    num_classes = max(y_train) + 1
+    num_channels = x_train.shape[1]
+
+    #increase the number of labels proportionally to the increase_multiplier
+    y_train = np.repeat(y_train, increase_multiplier)
+
+    gen_net = load_model_generator(seq_len=seq_len, num_channels=num_channels, num_classes=num_classes, model_path=model_path)
+    fake_sigs = generate_fake_samples(gen_net, y_train)
+
+    train_set = SynthDataset(fake_sigs, y_train)
+
+    return train_set
+
+def create_mixed_dataset(data_path, model_path, features_names, seq_len, increase_multiplier):
+    train_set = load_and_preprocess_data(data_path, features_names, "Stage", seq_len, is_train=True) 
+
+    y_train = train_set.Y_set
+    x_train = train_set.X_set 
+
+    num_classes = max(y_train) + 1
+    num_channels = x_train.shape[1]
+
+    #increase the number of labels proportionally to the increase_multiplier
+    y_train_fake = np.repeat(y_train, increase_multiplier)
+
+    gen_net = load_model_generator(seq_len=seq_len, num_channels=num_channels, num_classes=num_classes, model_path=model_path)
+    fake_sigs = generate_fake_samples(gen_net, y_train_fake)
+
+    #concatenate the original dataset with the new one
+    x_train = np.concatenate((x_train, fake_sigs), axis=0)
+    y_train = np.concatenate((y_train, y_train_fake), axis=0)
+
+    train_set = SynthDataset(x_train, y_train)
+
+    return train_set
+
+class SynthDataset(Dataset):
+    def __init__(self, X_train, Y_train):
+        self.X_train = X_train
+        self.Y_train = Y_train
+
+    def __len__(self):
+        return len(self.X_train)
+
+    def __getitem__(self, idx):
+        return self.X_train[idx], self.Y_train[idx]
+
+def recreate_balanced_dataset(model_path, features_names, seq_len, n_samples, num_classes, num_channels):
+    gen_net = load_model_generator(seq_len=seq_len, num_channels=num_channels, num_classes=num_classes, model_path=model_path)
+    
+    Y_train = np.array([])
+    
+    #generate fake labels in Y_train
+    for i in range(num_classes):
+        Y_train = np.append(Y_train, np.full((n_samples,), i))
+
+    X_train = generate_fake_samples(gen_net, Y_train)
+
+    return SynthDataset(X_train, Y_train)
 
 def main():
     fake_sigs, labels = recreate_dataset()

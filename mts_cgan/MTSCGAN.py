@@ -36,7 +36,7 @@ class Generator(nn.Module):
                          forward_drop_p=self.forward_drop_rate
                         )
 
-        self.l2 = nn.Linear(1, self.latent_dim)
+        self.l2 = nn.Linear(self.number_classes, self.latent_dim)
         self.l3 = nn.Linear(self.latent_dim, self.seq_len * self.embed_dim)
         self.l4 = nn.Linear(2, 1)
 
@@ -48,11 +48,11 @@ class Generator(nn.Module):
 
     def forward(self, z, context):
         z = z.view(-1, 1, self.latent_dim)                                
-        real = context.view(-1, self.context_shape, 1)
+        real = context.view(-1, self.context_shape, self.number_classes)
         real_l = self.l2(real)  
-        #real_l = real_l * (1-self.alphaconv)
+        real_l = real_l * (1-self.alphaconv)
         
-        #z = z * self.alphaconv
+        z = z * self.alphaconv
         
         cat_z_real = torch.cat((z, real_l), dim = 1)
         transp_cat = torch.transpose(cat_z_real,1,2)                      
@@ -231,8 +231,8 @@ class Discriminator(nn.Module):
         self.seq_length = seq_length
         self.depth = depth
         self.n_classes = n_classes
-        self.l5 = nn.Linear(self.n_classes, self.seq_length*self.in_channels) #batch size, seq length
-        self.l6 = nn.Linear(5, self.n_classes)
+        self.l5 = nn.Linear(self.n_classes, self.seq_length)
+        self.l6 = nn.Linear(self.in_channels + 1, self.in_channels)
         self.Patch =  PatchEmbedding_Linear(in_channels = self.in_channels, patch_size = self.patch_size, emb_size = self.emb_size, seq_length = self.seq_length)
         self.dis_enc = Dis_TransformerEncoder(depth = self.depth, emb_size = self.emb_size, drop_p=0.5, forward_drop_p=0.5, **kwargs)
         self.classif = ClassificationHead(emb_size = self.emb_size, n_classes = self.n_classes)
@@ -241,14 +241,13 @@ class Discriminator(nn.Module):
         
     def forward(self, sig, context):
         #prepare data for disc
-        context = context.view(-1, 1, self.n_classes) #batch size 
+        context = context.view(-1, 1, self.n_classes) 
         context_l = self.l5(context)
-        sig = sig.reshape(-1, self.n_classes, self.seq_length*self.in_channels) #batch size
+        sig = sig.view(-1,self.in_channels,self.seq_length)
         cat_context_real = torch.cat((sig, context_l), dim = 1)
         transp_cat = torch.transpose(cat_context_real,1,2)  
         transp_cat_l = self.l6(transp_cat)                               
-        real_input_disc = torch.transpose(transp_cat_l, 1, 2).reshape(-1, self.in_channels, 1, self.seq_length)
-
+        real_input_disc = torch.transpose(transp_cat_l,1,2).view(-1,self.in_channels,1,self.seq_length)
 
         x = self.Patch(real_input_disc)
         y =self.dis_enc(x)

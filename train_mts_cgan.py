@@ -29,7 +29,7 @@ command = [
     "--dist-url", "tcp://localhost:4321",
     "--dist-backend", "nccl",
     "--world-size", "1",
-    "--max_epoch", "40",
+    "--max_epoch", "90",
     "--rank", args.rank,
     "--dataset", "mitbith",
     "--bottom_width", "8",
@@ -53,7 +53,7 @@ command = [
     "--beta1", "0.9",
     "--beta2", "0.999",
     "--phi", "1",
-    "--batch_size", "12",
+    "--batch_size", "32",
     "--num_eval_imgs", "50000",
     "--init_type", "xavier_uniform",
     "--n_critic", "1",
@@ -66,7 +66,7 @@ command = [
     "--ema_warmup", "0.1",
     "--ema", "0.9999",
     "--diff_aug", "translation,cutout,color",
-    "--exp_name", "APTCGAN",
+    "--exp_name", "APT_MTS_CGAN",
 ]
 
 # Executar o comando

@@ -40,15 +40,20 @@ class Generator(nn.Module):
         self.deconv = nn.Sequential(
             nn.Conv2d(self.data_embed_dim, self.channels, 1, 1, 0)
         )
+
+        self.batchNorm = nn.BatchNorm1d(self.seq_len * self.data_embed_dim)
+        self.batchNorm2d = nn.BatchNorm2d(1)
         
     def forward(self, z, labels):
         c = self.label_embedding(labels)
         x = torch.cat([z, c], 1)
         x = self.l1(x)
+        x = self.batchNorm(x)
         x = x.view(-1, self.seq_len, self.data_embed_dim)
         H, W = 1, self.seq_len
         x = self.blocks(x)
         x = x.reshape(x.shape[0], 1, x.shape[1], x.shape[2])
+        x = self.batchNorm2d(x)
         output = self.deconv(x.permute(0, 3, 1, 2))
         return output 
 
@@ -164,7 +169,8 @@ class ClassificationHead(nn.Sequential):
         self.adv_head = nn.Sequential(
             Reduce('b n e -> b e', reduction='mean'),
             nn.LayerNorm(emb_size),
-            nn.Linear(emb_size, adv_classes)
+            MiniBatch(emb_size, 32, 4),
+            nn.Linear(emb_size + 32, adv_classes)
         )
         self.cls_head = nn.Sequential(
             Reduce('b n e -> b e', reduction='mean'),
@@ -200,11 +206,42 @@ class PatchEmbedding_Linear(nn.Module):
         # position
         x += self.positions
         return x    
-'''
-
-'''        
         
-class Discriminator(nn.Sequential):
+class MiniBatch(nn.Module):
+    def __init__(self, in_features, out_features, kernel_dims):
+        """
+        in_features: Dimensão da feature de entrada (ex: emb_size)
+        out_features: Número de kernels (dimensão de saída do minibatch)
+        kernel_dims: Tamanho dos vetores latentes para comparação
+        """
+        super(MiniBatch, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.kernel_dims = kernel_dims
+
+        # Tensor de peso T para projeção: shape (in_features, out_features, kernel_dims)
+        self.T = nn.Parameter(torch.randn(in_features, out_features, kernel_dims))
+
+    def forward(self, x):
+        # x: (batch, in_features)
+        M = x @ self.T.view(self.in_features, -1)  # (batch, out_features * kernel_dims)
+        M = M.view(-1, self.out_features, self.kernel_dims)  # (batch, out_features, kernel_dims)
+
+        # Calcula a distância L1 entre os pares de amostras
+        batch_size = M.size(0)
+        out = []
+
+        for i in range(batch_size):
+            diff = M[i].unsqueeze(0) - M  # (batch, out_features, kernel_dims)
+            diff = torch.abs(diff).sum(2)  # Soma ao longo de kernel_dims → (batch, out_features)
+            exp = torch.exp(-diff)  # Similaridade invertida
+            out.append(exp.sum(0) - 1)  # Remove self-similarity
+
+        # Resulta em (batch, out_features)
+        out = torch.stack(out)
+        return torch.cat([x, out], dim=1)  # Concatena com input original
+
+""" class Discriminator(nn.Sequential):
     def __init__(self, 
                  in_channels=3,
                  patch_size=42,
@@ -213,10 +250,24 @@ class Discriminator(nn.Sequential):
                  seq_length = 150,
                  depth=3, 
                  n_classes=9, 
-                 **kwargs):
+                 **kwargs): 
         super().__init__(
             PatchEmbedding_Linear(in_channels, patch_size, data_emb_size, seq_length),
             Dis_TransformerEncoder(depth, emb_size=data_emb_size, drop_p=0.5, forward_drop_p=0.5, **kwargs),
             ClassificationHead(data_emb_size, 1, n_classes)
-        )
+        ) """
+
+class Discriminator(nn.Module):
+    def __init__(self, in_channels, patch_size, data_emb_size, label_emb_size, seq_length, depth, n_classes, **kwargs):
+        super().__init__()
+        self.embedding = PatchEmbedding_Linear(in_channels, patch_size, data_emb_size, seq_length)
+        self.encoder = Dis_TransformerEncoder(depth, emb_size=data_emb_size, drop_p=0.5, forward_drop_p=0.5, **kwargs)
+        self.cls_head = ClassificationHead(data_emb_size,1, n_classes)
+
+    def forward(self, x):
+        x = self.embedding(x)                  # (batch, seq+1, emb_size)
+        x = self.encoder(x)                    # (batch, seq+1, emb_size)
+        x = self.cls_head(x)                   # (batch, emb_size)
+        return x
+
         
