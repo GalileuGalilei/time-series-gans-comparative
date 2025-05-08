@@ -42,7 +42,7 @@ command = [
     "--d_heads", "4",
     "--d_depth", "3",
     "--g_depth", "5,4,2",
-   # "--load_path", "logs/TTS_APT_CGAN_2025_04_04_19_45_40/Model/checkpoint",
+   # "--load_path", "logs/TTS_APT_CGAN_2025_04_15_12_41_54/Model/checkpoint",
     "--dropout", "0",
     "--latent_dim", "100",
     "--gf_dim", "1024",
@@ -68,7 +68,7 @@ command = [
     "--ema_warmup", "0.1",
     "--ema", "0.9999",
     "--diff_aug", "translation,cutout,color",
-    "--exp_name", "TTS_APT_CGAN"
+    "--exp_name", "TTS_PURE_ORIGINAL_APT_CGAN"
 ]
 
 # Executar o comando

@@ -94,20 +94,20 @@ def main_worker(gpu, ngpus_per_node, args):
 
     #load dataset
     seq_len = 30
-    features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'Flow Bytes/s', 'Timestamp']
-    train_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, 57000)
-    train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers)
+    features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
+    train_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=True, shuffle=True)
+    train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
 
     num_channels = train_set.X_set.shape[1]
-    num_classes = max(train_set.Y_set) + 1
+    num_classes = max(np.unique(train_set.Y_set))
 
     # import network
-    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=10, 
-                        label_embed_dim=10 ,depth=3, num_heads=5, 
-                        forward_drop_rate=0.5, attn_drop_rate=0.5)
+    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=64, 
+                        label_embed_dim=32, depth=3, num_heads=8, 
+                        forward_drop_rate=0.1, attn_drop_rate=0.1)
     
     print(gen_net)
-    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=50, label_emb_size=10, seq_length=seq_len, depth=3, n_classes=num_classes)
+    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=96, label_emb_size=32, seq_length=seq_len, depth=4, n_classes=num_classes)
     print(dis_net)
     
     if not torch.cuda.is_available():
