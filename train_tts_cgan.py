@@ -16,14 +16,10 @@ args = parse_args()
 # Definir variáveis de ambiente apenas para o subprocesso
 env = os.environ.copy()
 env["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
-#debug
-env["CUDA_LAUNCH_BLOCKING"] = "1"
-env["TORCH_USE_CUDA_DSA"] = "1"
-
 
 # Construir a lista de argumentos
 command = [
-    "python", "trainTTSCGAN.py",
+    "python", "tts_cgan/trainTTSCGAN.py",
     "-gen_bs", "32",
     "-dis_bs", "32",
     "--dist-url", "tcp://localhost:4321",
