@@ -1,26 +1,25 @@
 import numpy as np
 import tensorflow.compat.v1 as tf
+#import data
 import pdb
 import random
 import json
 from scipy.stats import mode
 
-import data_utils
-import plotting
-import model
-import utils
-import eval
+from . import data_utils
+from . import plotting
+from . import model
+from . import utils
 
 from time import time
 from math import floor
-from mmd import rbf_mmd2, median_pairwise_distance, mix_rbf_mmd2_and_ratio
+from .mmd import rbf_mmd2, median_pairwise_distance, mix_rbf_mmd2_and_ratio
 
 # --- get settings --- #
 # parse command line arguments, or use defaults
 parser = utils.rgan_options_parser()
 settings = vars(parser.parse_args())
-# if a settings file is specified, it overrides command line arguments/defaults
-if settings['settings_file']: settings = utils.load_settings_from_file(settings)
+settings = utils.load_settings_from_file(settings)
 
 # --- get data, split --- #
 samples, pdf, labels = data_utils.get_samples_and_labels(settings)
@@ -231,12 +230,6 @@ for epoch in range(num_epochs):
         else:
             pdf_sample = 'NA'
             pdf_real = 'NA'
-    else:
-        # report nothing this epoch
-        mmd2 = 'NA'
-        that = 'NA'
-        pdf_sample = 'NA'
-        pdf_real = 'NA'
     
     ## get 'spent privacy'
     if dp:
@@ -250,10 +243,8 @@ for epoch in range(num_epochs):
 
     ## print
     t = time() - t0
-    try:
-        print('%d\t%.2f\t%.4f\t%.4f\t%.5f\t%.0f\t%.2f\t%.2f' % (epoch, t, D_loss_curr, G_loss_curr, mmd2, that_np, pdf_sample, pdf_real))
-    except TypeError:       # pdf are missing (format as strings)
-        print('%d\t%.2f\t%.4f\t%.4f\t%.5f\t%.0f\t %s\t %s' % (epoch, t, D_loss_curr, G_loss_curr, mmd2, that_np, pdf_sample, pdf_real))
+    print('%d\t%.2f\t%.4f\t%.4f\t%.5f\t%.0f' % (epoch, t, D_loss_curr, G_loss_curr, mmd2, that_np))
+    
 
     ## save trace
     trace.write(' '.join(map(str, [epoch, t, D_loss_curr, G_loss_curr, mmd2, that_np, pdf_sample, pdf_real])) + '\n')

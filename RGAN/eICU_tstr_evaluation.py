@@ -1,4 +1,4 @@
-import data_utils
+from . import data_utils
 import pandas as pd
 import numpy as np
 import tensorflow as tf
@@ -8,7 +8,6 @@ import time
 import json
 import os
 import math
-import data_utils
 import pickle
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_curve, auc, precision_recall_curve

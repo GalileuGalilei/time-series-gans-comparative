@@ -6,7 +6,7 @@ from __future__ import division
 
 import tensorflow.compat.v1 as tf
 
-from tf_ops import dot, sq_sum
+from .tf_ops import dot, sq_sum
 
 from scipy.spatial.distance import pdist
 from numpy import median, vstack, einsum

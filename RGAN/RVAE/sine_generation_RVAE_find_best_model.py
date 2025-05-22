@@ -24,7 +24,7 @@ import math, time, json, random
 import glob
 import copy
 
-experiment_id = './experiments_test_RVAE_sine_SRNN_new_RVAE_HS_short_callable'
+experiment_id = './RGAN/experiments_test_RVAE_sine_SRNN_new_RVAE_HS_short_callable'
  
 ########################
 # SELECT RVAE WITH LOWER COST

@@ -7,8 +7,9 @@ import json
 import random
 import os
 
-import model
-import paths
+from . import data_utils
+from data.DataLoader import load_and_preprocess_data
+from . import paths
 
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import multivariate_normal, invgamma, mode
@@ -27,8 +28,9 @@ def get_samples_and_labels(settings):
     perform test/train split as necessary, and reform into 'samples' and 'labels'
     dictionaries.
     """
+    """
     if settings['data_load_from']:
-        data_path = './experiments/data/' + settings['data_load_from'] + '.data.npy'
+        data_path = './RGAN/experiments/data/' + settings['data_load_from'] + '.data.npy'
         print('Loading data from', data_path)
         samples, pdf, labels = get_data('load', data_path)
         train, vali, test = samples['train'], samples['vali'], samples['test']
@@ -64,9 +66,25 @@ def get_samples_and_labels(settings):
         else:
             train, vali, test, labels_list = split(samples, [0.6, 0.2, 0.2], normalise=norm, labels=labels)
             train_labels, vali_labels, test_labels = labels_list
+    """
+
+    #load dataset
+    seq_len = 30
+    features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
+    data_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True, expand=False, one_hot=True)
+
+
+    train_labels = data_set.Y_train_set
+    validation_cutoff = int(len(train_labels) * 0.8)
+    test_labels = data_set.Y_test_set
+    vali_labels = train_labels[validation_cutoff:]
 
     labels = dict()
     labels['train'], labels['vali'], labels['test'] = train_labels, vali_labels, test_labels
+
+    train = data_set.X_train_set
+    test = data_set.X_test_set
+    vali = train[validation_cutoff:]
 
     samples = dict()
     samples['train'], samples['vali'], samples['test'] = train, vali, test
@@ -105,7 +123,7 @@ def get_samples_and_labels(settings):
     settings['num_signals'] = samples['train'].shape[2]
     settings['num_generated_features'] = samples['train'].shape[2]
 
-    return samples, pdf, labels
+    return samples, None, labels
 
 def get_data(data_type, data_options=None):
     """
@@ -887,17 +905,28 @@ def generate_synthetic(identifier, epoch, n_train, predict_labels=False):
     - Generate num_examples synthetic training data (+labels)
     - Save to format easy for training classifier on (see Eval)
     """
-    settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
     if not settings['cond_dim'] > 0:
         assert settings['predict_labels']
         assert predict_labels
+
     # get the test data
     print('Loading test (real) data for', identifier)
-    data_dict = np.load('./experiments/data/' + identifier + '.data.npy').item()
-    test_data = data_dict['samples']['test']
-    test_labels = data_dict['labels']['test']
-    train_data = data_dict['samples']['train']
-    train_labels = data_dict['labels']['train']
+    #load dataset
+    seq_len = 30
+    features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
+    data_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True, expand=False, one_hot=True)
+
+
+    train_labels = data_set.Y_train_set
+    validation_cutoff = int(len(train_labels) * 0.8)
+    test_labels = data_set.Y_test_set
+    vali_labels = train_labels[validation_cutoff:]
+
+    labels = dict()
+    labels['train'], labels['vali'], labels['test'] = train_labels, vali_labels, test_labels
+
+
     print('Loaded', test_data.shape[0], 'test examples')
     print('Sampling', n_train, 'train examples from the model')
     if not predict_labels:
@@ -927,12 +956,8 @@ def generate_synthetic(identifier, epoch, n_train, predict_labels=False):
         test_data = test_data[:, :, :-n_labels]
     # package up, save
     exp_data = dict()
-    exp_data['test_data'] = test_data
-    exp_data['test_labels'] = test_labels
-    exp_data['train_data'] = train_data
-    exp_data['train_labels'] = train_labels
     exp_data['synth_data'] = synth_data
     exp_data['synth_labels'] = synth_labels
     # save it all up
-    np.save('./experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy', exp_data)
+    np.save('./RGAN/experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy', exp_data)
     return True

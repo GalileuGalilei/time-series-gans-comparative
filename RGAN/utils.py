@@ -92,7 +92,7 @@ def load_settings_from_file(settings):
     Handle loading settings from a JSON file, filling in missing settings from
     the command line defaults, but otherwise overwriting them.
     """
-    settings_path = './experiments/settings/' + settings['settings_file'] + '.txt'
+    settings_path = "RGAN/experiments/settings/dapt2020.txt"
     print('Loading settings from', settings_path)
     settings_loaded = json.load(open(settings_path, 'r'))
     # check for settings missing in file

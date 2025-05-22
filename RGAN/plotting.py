@@ -7,8 +7,8 @@ from time import time
 from matplotlib.colors import hsv_to_rgb
 from pandas import read_table, read_hdf
 
-import paths
-from data_utils import scale_data
+from . import paths
+from . import scale_data
 
 def visualise_at_epoch(vis_sample, data, predict_labels, one_hot, epoch,
         identifier, num_epochs, resample_rate_in_min, multivariate_mnist,
@@ -46,26 +46,31 @@ def save_plot_sample(samples, idx, identifier, n_samples=6, num_epochs=None, nco
     assert n_samples <= samples.shape[0]
     assert n_samples % ncol == 0
     sample_length = samples.shape[1]
+    n_features = samples.shape[2] if samples.ndim > 2 else 1
 
-    if not num_epochs is None:
-        col = hsv_to_rgb((1, 1.0*(idx)/num_epochs, 0.8))
+    if num_epochs is not None:
+        col = hsv_to_rgb((1, 1.0 * (idx) / num_epochs, 0.8))
     else:
         col = 'grey'
 
     x_points = np.arange(sample_length)
-
-    nrow = int(n_samples/ncol)
+    nrow = int(n_samples / ncol)
     fig, axarr = plt.subplots(nrow, ncol, sharex=True, figsize=(6, 6))
+
     for m in range(nrow):
         for n in range(ncol):
-            # first column
-            sample = samples[n*nrow + m, :, 0]
-            axarr[m, n].plot(x_points, sample, color=col)
+            sample_idx = n * nrow + m
+            for feat in range(n_features):
+                sample = samples[sample_idx, :, feat]
+                axarr[m, n].plot(x_points, sample, label=f'col {feat}', alpha=0.8)
             axarr[m, n].set_ylim(-1, 1)
+            if n_features > 1:
+                axarr[m, n].legend(fontsize='x-small')
+
     for n in range(ncol):
-        axarr[-1, n].xaxis.set_ticks(range(0, sample_length, int(sample_length/4)))
+        axarr[-1, n].xaxis.set_ticks(range(0, sample_length, int(sample_length / 4)))
     fig.suptitle(idx)
-    fig.subplots_adjust(hspace = 0.15)
+    fig.subplots_adjust(hspace=0.15)
     fig.savefig("RGAN/experiments/plots/" + identifier + "_epoch" + str(idx).zfill(4) + ".png")
     plt.clf()
     plt.close()

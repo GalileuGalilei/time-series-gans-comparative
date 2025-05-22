@@ -28,7 +28,7 @@ import collections
 
 import tensorflow as tf
 
-from differential_privacy.dp_sgd.dp_optimizer import utils
+from . import utils
 
 import pdb
 

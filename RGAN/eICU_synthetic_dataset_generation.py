@@ -1,14 +1,13 @@
-import data_utils
 import pandas as pd
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import math, random, itertools
 import pickle
 import time
 import json
 import os
 import math
-from data_utils import get_eICU_with_targets
+from . import data_utils
 import plotting
 
 import model
@@ -172,7 +171,7 @@ for identifier in identifiers:
                 identifier=identifier + '_real', idx=0)
 
 
-    trace = open('./experiments/traces/' + identifier + '.trace.txt', 'w')
+    trace = open('./RGAN/experiments/traces/' + identifier + '.trace.txt', 'w')
     trace.write('epoch D_loss G_loss time\n')
     print('epoch\tD_loss\tG_loss\ttime\n')
     t0 = time.time()

@@ -6,9 +6,9 @@ import json
 import pdb
 import numpy as np
 import pandas as pd
-from eugenium_mmd import MMD_3_Sample_Test
+from .eugenium_mmd import MMD_3_Sample_Test
 from scipy.stats import ks_2samp
-import mmd
+from . import mmd
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report, precision_recall_fscore_support, accuracy_score, roc_auc_score, average_precision_score
 from sklearn.ensemble import RandomForestClassifier
@@ -34,13 +34,13 @@ def assert_same_data(A, B):
     # case 0, both loaded
     if A['data'] == 'load' and B['data'] == 'load':
         assert A['data_load_from'] == B['data_load_from']
-        data_path = './experiments/data/' + A['data_load_from']
+        data_path = './RGAN/experiments/data/' + A['data_load_from']
     elif A['data'] == 'load' and (not B['data'] == 'load'):
         assert A['data_load_from'] == B['identifier']
-        data_path = './experiments/data/' + A['data_load_from']
+        data_path = './RGAN/experiments/data/' + A['data_load_from']
     elif (not A['data'] == 'load') and B['data'] == 'load':
         assert B['data_load_from'] == A['identifier']
-        data_path = './experiments/data/' + A['identifier']
+        data_path = './RGAN/experiments/data/' + A['identifier']
     else:
         raise ValueError(A['data'], B['data'])
     return data_path
@@ -52,11 +52,11 @@ def model_memorisation(identifier, epoch, max_samples=2000, tstr=False):
     if tstr:
         print('Loading data from TSTR experiment (not sampling from model)')
         # load pre-generated samples
-        synth_data = np.load('./experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy').item()
+        synth_data = np.load('./RGAN/experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy').item()
         model_samples = synth_data['samples']
         synth_labels = synth_data['labels']
         # load real data used in that experiment
-        real_data = np.load('./experiments/data/' + identifier + '.data.npy').item()
+        real_data = np.load('./RGAN/experiments/data/' + identifier + '.data.npy').item()
         real_samples = real_data['samples']
         train = real_samples['train']
         test = real_samples['test']
@@ -103,9 +103,9 @@ def model_memorisation(identifier, epoch, max_samples=2000, tstr=False):
             if model_samples.shape[0] > n_samples:
                 model_samples = np.random.permutation(model_samples)[:n_samples]
         else:
-            settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+            settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
             # get the test, train sets
-            data = np.load('./experiments/data/' + identifier + '.data.npy').item()
+            data = np.load('./RGAN/experiments/data/' + identifier + '.data.npy').item()
             train = data['samples']['train']
             test = data['samples']['test']
             n_samples = test.shape[0]
@@ -130,8 +130,8 @@ def model_comparison(identifier_A, identifier_B, epoch_A=99, epoch_B=99):
     Compare two models using relative MMD test
     """
     # make sure they used the same data
-    settings_A = json.load(open('./experiments/settings/' + identifier_A + '.txt', 'r'))
-    settings_B = json.load(open('./experiments/settings/' + identifier_B + '.txt', 'r'))
+    settings_A = json.load(open('./RGAN/experiments/settings/' + identifier_A + '.txt', 'r'))
+    settings_B = json.load(open('./RGAN/experiments/settings/' + identifier_B + '.txt', 'r'))
     data_path = assert_same_data(settings_A, settings_B)
     # now load the data
     data = np.load(data_path + '.data.npy').item()['samples']['vali']
@@ -162,11 +162,11 @@ def get_reconstruction_errors(identifier, epoch, g_tolerance=0.05, max_samples=1
     Get the reconstruction error of every point in the training set of a given
     experiment.
     """
-    settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
     if settings['data_load_from']:
-        data_dict = np.load('./experiments/data/' + settings['data_load_from'] + '.data.npy').item()
+        data_dict = np.load('./RGAN/experiments/data/' + settings['data_load_from'] + '.data.npy').item()
     else:
-        data_dict = np.load('./experiments/data/' + identifier + '.data.npy').item()
+        data_dict = np.load('./RGAN/experiments/data/' + identifier + '.data.npy').item()
     samples = data_dict['samples']
     train = samples['train']
     vali = samples['vali']
@@ -176,7 +176,7 @@ def get_reconstruction_errors(identifier, epoch, g_tolerance=0.05, max_samples=1
     try:
         if rerun:
             raise FileNotFoundError
-        errors = np.load('./experiments/eval/' + identifier + '_' + str(epoch) + '_' + str(g_tolerance) + '.reconstruction_errors.npy').item()
+        errors = np.load('./RGAN/experiments/eval/' + identifier + '_' + str(epoch) + '_' + str(g_tolerance) + '.reconstruction_errors.npy').item()
         train_errors = errors['train']
         test_errors = errors['test']
         generated_errors = errors['generated']
@@ -184,7 +184,7 @@ def get_reconstruction_errors(identifier, epoch, g_tolerance=0.05, max_samples=1
         print('Loaded precomputed errors')
     except FileNotFoundError:
         if tstr:
-            synth_data = np.load('./experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy').item()
+            synth_data = np.load('./RGAN/experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy').item()
             generated = synth_data['samples']
             synth_labels = synth_data['labels']
             train_labels = labels['train']
@@ -234,7 +234,7 @@ def get_reconstruction_errors(identifier, epoch, g_tolerance=0.05, max_samples=1
         noisy_errors = None
         # save!
         errors = {'train': train_errors, 'test': test_errors, 'generated': generated_errors, 'noisy': noisy_errors}
-        np.save('./experiments/eval/' + identifier + '_' + str(epoch) + '_' + str(g_tolerance) + '.reconstruction_errors.npy', errors)
+        np.save('./RGAN/experiments/eval/' + identifier + '_' + str(epoch) + '_' + str(g_tolerance) + '.reconstruction_errors.npy', errors)
     # do two-sample Kolomogorov-Smirnov test for equality
     D_test, p_test = ks_2samp(train_errors, test_errors)
     print('KS statistic and p-value for train v. test erors:', D_test, p_test)
@@ -282,7 +282,7 @@ def view_digit(identifier, epoch, digit, n_samples=6):
     """
     Generate a bunch of MNIST digits from a CGAN, view them
     """
-    settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
     if settings['one_hot']:
         assert settings['max_val'] == 1
         assert digit <= settings['cond_dim']
@@ -304,10 +304,10 @@ def view_interpolation(identifier, epoch, n_steps=6, input_samples=None, e_toler
     Else:
         Sample two points in the latent space, view a linear interpolation between them.
     """
-    settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
     if input_samples is None:
         # grab two trainng examples
-        data = np.load('./experiments/data/' + identifier + '.data.npy').item()
+        data = np.load('./RGAN/experiments/data/' + identifier + '.data.npy').item()
         train = data['samples']['train']
         input_samples = np.random.permutation(train)[:2]
 #        Z_sampleA, Z_sampleB = model.sample_Z(2, settings['seq_length'], settings['latent_dim'], 
@@ -330,7 +330,7 @@ def view_interpolation(identifier, epoch, n_steps=6, input_samples=None, e_toler
     return True
 
 def view_latent_vary(identifier, epoch, n_steps=6):
-    settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
     Z_sample = model.sample_Z(1, settings['seq_length'], settings['latent_dim'], 
                                       settings['use_time'])[0]
     samples_dim = []
@@ -345,7 +345,7 @@ def view_reconstruction(identifier, epoch, real_samples, tolerance=1):
     Given a set of real samples, find the "closest" latent space points 
     corresponding to them, generate samples from these, visualise!
     """
-    settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
     Zs, error, sigma = model.invert(settings, epoch, real_samples, tolerance=tolerance)
     plotting.visualise_latent(Zs[0], identifier+'_' + str(epoch) + '_0')
     plotting.visualise_latent(Zs[1], identifier+'_' + str(epoch) + '_1')
@@ -355,7 +355,7 @@ def view_reconstruction(identifier, epoch, real_samples, tolerance=1):
 
 def view_fixed(identifier, epoch, n_samples=6, dim=None):
     """ What happens when we give the same point at each time step? """
-    settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
     Z_samples = model.sample_Z(n_samples, settings['seq_length'], settings['latent_dim'], 
                                       settings['use_time'])
     # now, propagate forward the value at time 0 (which time doesn't matter)
@@ -372,7 +372,7 @@ def view_fixed(identifier, epoch, n_samples=6, dim=None):
 
 def view_params(identifier, epoch):
     """ Visualise weight matrices in the GAN """
-    settings = json.load(open('./experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
     parameters = model.load_parameters(identifier + '_' + str(epoch))
     plotting.plot_parameters(parameters, identifier + '_' + str(epoch))
     return True
@@ -443,7 +443,7 @@ def TSTR_mnist(identifier, epoch, generate=True, duplicate_synth=1, vali=True, C
     else:
         test_set = 'test'
     if generate:
-        data = np.load('./experiments/data/' + identifier + '.data.npy').item()
+        data = np.load('./RGAN/experiments/data/' + identifier + '.data.npy').item()
         samples = data['samples']
         train_X = samples['train']
         test_X = samples[test_set]
@@ -456,10 +456,10 @@ def TSTR_mnist(identifier, epoch, generate=True, duplicate_synth=1, vali=True, C
         # for use in TRTS
         synth_testX = model.sample_trained_model(identifier, epoch, num_samples=test_Y.shape[0], C_samples=test_Y)
         synth_data = {'samples': synth_X, 'labels': synth_Y, 'test_samples': synth_testX, 'test_labels': test_Y}
-        np.save('./experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy', synth_data)
+        np.save('./RGAN/experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy', synth_data)
     else:
         print('Loading synthetic data from pre-sampled model')
-        exp_data = np.load('./experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy').item()
+        exp_data = np.load('./RGAN/experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy').item()
         test_X, test_Y = exp_data['test_data'], exp_data['test_labels']
         train_X, train_Y = exp_data['train_data'], exp_data['train_labels']
         synth_X, synth_Y = exp_data['synth_data'], exp_data['synth_labels']
@@ -522,11 +522,11 @@ def TSTR_mnist(identifier, epoch, generate=True, duplicate_synth=1, vali=True, C
     all_scores = synth_scores + real_scores
 
     if vali:
-        report_file = open('./experiments/tstr/vali.' + which_setting + '_report.v3.csv', 'a')
+        report_file = open('./RGAN/experiments/tstr/vali.' + which_setting + '_report.v3.csv', 'a')
         report_file.write('mnist,' + identifier + ',' + model_choice + ',' + str(epoch) + ',' + ','.join(map(str, all_scores)) + '\n')
         report_file.close()
     else:
-        report_file = open('./experiments/tstr/' + which_setting + '_report.v3.csv', 'a')
+        report_file = open('./RGAN/experiments/tstr/' + which_setting + '_report.v3.csv', 'a')
         report_file.write('mnist,' + identifier + ',' + model_choice + ',' + str(epoch) + ',' + ','.join(map(str, all_scores)) + '\n')
         report_file.close()
         # visualise results
@@ -546,7 +546,7 @@ def TSTR_eICU(identifier, epoch, generate=True, vali=True, CNN=False, do_OR=Fals
         test_set = 'vali'
     else:
         test_set = 'test'
-    data = np.load('./experiments/data/' + identifier + '.data.npy').item()
+    data = np.load('./RGAN/experiments/data/' + identifier + '.data.npy').item()
     samples = data['samples']
     train_X = samples['train']
     test_X = samples[test_set]
@@ -560,12 +560,12 @@ def TSTR_eICU(identifier, epoch, generate=True, vali=True, CNN=False, do_OR=Fals
         # for use in TRTS
         synth_testX = model.sample_trained_model(identifier, epoch, num_samples=test_Y.shape[0], C_samples=test_Y)
         synth_data = {'samples': synth_X, 'labels': synth_Y, 'test_samples': synth_testX, 'test_labels': test_Y}
-        np.save('./experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy', synth_data)
+        np.save('./RGAN/experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy', synth_data)
     else:
         print('Loading pre-generated data')
         print('WARNING: not implemented for TRTS')
         # get "train" data
-        exp_data = np.load('./experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy').item()
+        exp_data = np.load('./RGAN/experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy').item()
         synth_X = exp_data['samples']
         synth_Y = exp_data['labels']
         n_synth = synth_X.shape[0]
@@ -632,11 +632,11 @@ def TSTR_eICU(identifier, epoch, generate=True, vali=True, CNN=False, do_OR=Fals
         all_scores = synth_scores + real_scores
 
         if vali:
-            report_file = open('./experiments/tstr/vali.' + which_setting + '_report.v3.csv', 'a')
+            report_file = open('./RGAN/experiments/tstr/vali.' + which_setting + '_report.v3.csv', 'a')
             report_file.write('eICU_' + task + ',' + identifier + ',' + model_choice + ',' + str(epoch) + ',' + ','.join(map(str, all_scores)) + '\n')
             report_file.close()
         else:
-            report_file = open('./experiments/tstr/' + which_setting + '_report.v3.csv', 'a')
+            report_file = open('./RGAN/experiments/tstr/' + which_setting + '_report.v3.csv', 'a')
             report_file.write('eICU_' + task + ',' + identifier + ',' + model_choice + ',' + str(epoch) + ',' + ','.join(map(str, all_scores)) + '\n')
             report_file.close()
         
@@ -691,13 +691,13 @@ def NIPS_toy_plot(identifier_rbf, epoch_rbf, identifier_sine, epoch_sine, identi
     """
     n_samples = 15
     # settings
-    settings_rbf = json.load(open('./experiments/settings/' + identifier_rbf + '.txt', 'r'))
-    settings_sine = json.load(open('./experiments/settings/' + identifier_sine + '.txt', 'r'))
-    settings_mnist = json.load(open('./experiments/settings/' + identifier_mnist + '.txt', 'r'))
+    settings_rbf = json.load(open('./RGAN/experiments/settings/' + identifier_rbf + '.txt', 'r'))
+    settings_sine = json.load(open('./RGAN/experiments/settings/' + identifier_sine + '.txt', 'r'))
+    settings_mnist = json.load(open('./RGAN/experiments/settings/' + identifier_mnist + '.txt', 'r'))
     # data
-    data_rbf = np.load('./experiments/data/' + identifier_rbf + '.data.npy').item()
-    data_sine = np.load('./experiments/data/' + identifier_sine + '.data.npy').item()
-    data_mnist = np.load('./experiments/data/' + identifier_mnist + '.data.npy').item()
+    data_rbf = np.load('./RGAN/experiments/data/' + identifier_rbf + '.data.npy').item()
+    data_sine = np.load('./RGAN/experiments/data/' + identifier_sine + '.data.npy').item()
+    data_mnist = np.load('./RGAN/experiments/data/' + identifier_mnist + '.data.npy').item()
     train_rbf = data_rbf['samples']['train']
     train_sine = data_sine['samples']['train']
     train_mnist = data_mnist['samples']['train']

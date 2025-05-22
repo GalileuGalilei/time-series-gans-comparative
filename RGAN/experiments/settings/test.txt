@@ -1,11 +1,11 @@
 {
 "settings_file": "",
 "data": "gp_rbf",
-"num_samples": 14000,
+"num_samples": 3058,
 "seq_length": 30,
-"num_signals": 1,
+"num_signals": 8,
 "normalise": false,
-"cond_dim": 0,
+"cond_dim": 5,
 "max_val": 1,
 "one_hot": false,
 "predict_labels": false,
@@ -21,12 +21,12 @@
 "hidden_units_g": 100,
 "hidden_units_d": 100,
 "kappa": 1,
-"latent_dim": 5,
+"latent_dim": 64,
 "batch_mean": false,
 "learn_scale": false,
 "learning_rate": 0.1,
-"batch_size": 28,
-"num_epochs": 100,
+"batch_size": 40,
+"num_epochs": 60,
 "D_rounds": 5,
 "G_rounds": 1,
 "use_time": false,
@@ -39,5 +39,5 @@
 "l2norm_bound": 1e-05,
 "batches_per_lot": 1,
 "dp_sigma": 1e-05,
-"num_generated_features": 1
+"num_generated_features": 8
 }

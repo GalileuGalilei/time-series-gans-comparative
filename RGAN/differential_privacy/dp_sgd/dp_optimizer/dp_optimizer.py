@@ -22,8 +22,8 @@ from __future__ import division
 
 import tensorflow as tf
 tf.compat.v1.disable_eager_execution()
-
-from differential_privacy.dp_sgd.dp_optimizer import utils
+from . import utils
+#from differential_privacy.dp_sgd.dp_optimizer import utils
 #from differential_privacy.dp_sgd.per_example_gradients import per_example_gradients
 
 import pdb

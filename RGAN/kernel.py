@@ -12,7 +12,7 @@ from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 import pdb
 
-import data_utils
+from . import data_utils
 
 seq_length = 30
 num_signals = 1

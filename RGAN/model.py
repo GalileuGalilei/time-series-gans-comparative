@@ -1,16 +1,16 @@
 import tensorflow.compat.v1 as tf
 import numpy as np
 #from data_utils import get_batch
-import data_utils
+from . import data_utils
 import pdb
 import json
-from mod_core_rnn_cell_impl import LSTMCell          #modified to allow initializing bias in lstm
 #from tensorflow.contrib.rnn import LSTMCell
-import mmd
+from .import LSTMCell #modified to allow initializing bias in lstm
+from . import mmd
 
-from differential_privacy.dp_sgd.dp_optimizer import dp_optimizer
-from differential_privacy.dp_sgd.dp_optimizer import sanitizer
-from differential_privacy.privacy_accountant.tf import accountant
+from .differential_privacy.dp_sgd.dp_optimizer import dp_optimizer
+from .differential_privacy.dp_sgd.dp_optimizer import sanitizer
+from .differential_privacy.dp_sgd.dp_optimizer import accountant
 
 # --- to do with latent space --- #
 
@@ -66,17 +66,14 @@ def train_epoch(epoch, samples, labels, sess, Z, X, CG, CD, CS, D_loss, G_loss, 
             X_mb, Y_mb = data_utils.get_batch(samples, batch_size, batch_idx + d, labels)
             Z_mb = sample_Z(batch_size, seq_length, latent_dim, use_time)
             if cond_dim > 0:
-                # CGAN
                 Y_mb = Y_mb.reshape(-1, cond_dim)
-                if one_hot:
-                    # change all of the labels to a different one
-                    offsets = np.random.choice(cond_dim-1, batch_size) + 1
-                    new_labels = (np.argmax(Y_mb, axis=1) + offsets) % cond_dim
-                    Y_wrong = np.zeros_like(Y_mb)
-                    Y_wrong[np.arange(batch_size), new_labels] = 1
-                else:
-                    # flip all of the bits (assuming binary...)
-                    Y_wrong = 1 - Y_mb
+
+                # change the labels to a diffrent one
+                offsets = np.random.choice(cond_dim-1, batch_size) + 1
+                new_labels = (np.argmax(Y_mb, axis=1) + offsets) % cond_dim
+                Y_wrong = np.zeros_like(Y_mb)
+                Y_wrong[np.arange(batch_size), new_labels] = 1
+                
                 _ = sess.run(D_solver, feed_dict={X: X_mb, Z: Z_mb, CD: Y_mb, CS: Y_wrong, CG: Y_mb})
             else:
                 _ = sess.run(D_solver, feed_dict={X: X_mb, Z: Z_mb})
@@ -266,13 +263,12 @@ def generator(z, hidden_units_g, seq_length, batch_size, num_generated_features,
         cell = LSTMCell(num_units=hidden_units_g,
                            state_is_tuple=True,
                            initializer=lstm_initializer,
-                           bias_start=bias_start,
                            reuse=reuse)
-        rnn_outputs, rnn_states = tf.nn.dynamic_rnn(
+        rnn_outputs = tf.nn.dynamic_rnn(
             cell=cell,
             dtype=tf.float32,
             sequence_length=[seq_length]*batch_size,
-            inputs=inputs)
+            inputs=inputs)[0]
         rnn_outputs_2d = tf.reshape(rnn_outputs, [-1, hidden_units_g])
         logits_2d = tf.matmul(rnn_outputs_2d, W_out_G) + b_out_G
 #        output_2d = tf.multiply(tf.nn.tanh(logits_2d), scale_out_G)
