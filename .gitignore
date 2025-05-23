@@ -343,6 +343,8 @@ xla/
 #numpy
 *.npy
 
+*.rar
+
 #python
 *.pyc
 *.pyo
