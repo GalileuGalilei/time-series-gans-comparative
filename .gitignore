@@ -336,6 +336,13 @@ bazel-*
 # xla repo
 xla/
 
+# data
+*.csv
+*.json
+
+#numpy
+*.npy
+
 # direnv, posh-direnv
 .env
 .envrc
@@ -372,6 +379,7 @@ venv/
 # Log files
 *.log
 sweep/
+logs/
 
 # Android build artifacts
 android/pytorch_android/.cxx
