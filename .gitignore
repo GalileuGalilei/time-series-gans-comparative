@@ -343,6 +343,12 @@ xla/
 #numpy
 *.npy
 
+#python
+*.pyc
+*.pyo
+#pycache
+__pycache__/
+
 # direnv, posh-direnv
 .env
 .envrc
