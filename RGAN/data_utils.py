@@ -17,6 +17,7 @@ from scipy.special import gamma
 import cv2
 from functools import partial
 from math import ceil
+from . import model
 
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.preprocessing import MinMaxScaler
@@ -898,7 +899,7 @@ def get_eICU_with_targets(use_age=False, use_gender=False, save=False):
 
 
 ### --- TSTR ---- ####
-def generate_synthetic(identifier, epoch, n_train, predict_labels=False):
+def generate_synthetic(identifier, epoch, predict_labels=False):
     """
     - Load a CGAN pretrained model
     - Load its corresponding test data (+ labels)
@@ -917,26 +918,18 @@ def generate_synthetic(identifier, epoch, n_train, predict_labels=False):
     features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
     data_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True, expand=False, one_hot=True)
 
-
     train_labels = data_set.Y_train_set
-    validation_cutoff = int(len(train_labels) * 0.8)
-    test_labels = data_set.Y_test_set
-    vali_labels = train_labels[validation_cutoff:]
+    train_data = data_set.X_train_set
+    n_train = train_data.shape[0]
 
-    labels = dict()
-    labels['train'], labels['vali'], labels['test'] = train_labels, vali_labels, test_labels
-
-
-    print('Loaded', test_data.shape[0], 'test examples')
     print('Sampling', n_train, 'train examples from the model')
     if not predict_labels:
-        assert test_data.shape[0] == test_labels.shape[0]
         if 'eICU' in settings['data']:
             synth_labels = train_labels[np.random.choice(train_labels.shape[0], n_train), :]
         else:
             # this doesn't really work for eICU...
             synth_labels = model.sample_C(n_train, settings['cond_dim'], settings['max_val'], settings['one_hot'])
-            synth_data = model.sample_trained_model(settings, epoch, n_train, Z_samples=None, cond_dim=settings['cond_dim'], C_samples=synth_labels)
+            synth_data = model.sample_trained_model(settings, epoch, n_train, Z_samples=None, C_samples=synth_labels)
     else:
         assert settings['predict_labels']
         synth_data = model.sample_trained_model(settings, epoch, n_train, Z_samples=None, cond_dim=0)
@@ -945,19 +938,12 @@ def generate_synthetic(identifier, epoch, n_train, predict_labels=False):
             n_labels = 7
             synth_labels = synth_data[:, :, -n_labels:]
             train_labels = train_data[:, :, -n_labels:]
-            test_labels = test_data[:, :, -n_labels:]
         else:
             n_labels = 6        # mnist
             synth_labels, _ = mode(np.argmax(synth_data[:, :, -n_labels:], axis=2), axis=1)
             train_labels, _ = mode(np.argmax(train_data[:, :, -n_labels:], axis=2), axis=1)
-            test_labels, _ = mode(np.argmax(test_data[:, :, -n_labels:], axis=2), axis=1)
         synth_data = synth_data[:, :, :-n_labels]
         train_data = train_data[:, :, :-n_labels]
         test_data = test_data[:, :, :-n_labels]
     # package up, save
-    exp_data = dict()
-    exp_data['synth_data'] = synth_data
-    exp_data['synth_labels'] = synth_labels
-    # save it all up
-    np.save('./RGAN/experiments/tstr/' + identifier + '_' + str(epoch) + '.data.npy', exp_data)
-    return True
+    return synth_data, synth_labels, train_data, train_labels

@@ -2,7 +2,7 @@
 #from .eICU_task import *
 #from .eICU_synthetic_dataset_generation import *
 #from .eval import *
-from . mod_core_rnn_cell_impl import *
+from .mod_core_rnn_cell_impl import *
 from .model import *
 from .data_utils import *
 from .plotting import *

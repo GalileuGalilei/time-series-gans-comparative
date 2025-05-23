@@ -1,13 +1,80 @@
 from collections import defaultdict
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from torch.utils.data import TensorDataset, DataLoader
 from TTSCGAN.generate_data import recreate_dataset
-from TSTR import generate_data
 from tslearn.metrics import dtw
 from data.DataLoader import load_and_preprocess_data
-import torch
-import torch.nn as nn
+
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+
+def plot_PCA_TSE(series1, series2, method='both'):
+    """
+    Plota a comparação entre duas séries temporais usando PCA e T-SNE.
+
+    Args:
+        series1 (np.ndarray): Primeira série temporal (n amostras, d dimensões).
+        series2 (np.ndarray): Segunda série temporal (n amostras, d dimensões).
+        method (str): 'pca' para apenas PCA, 'tsne' para apenas T-SNE, ou 'both' para ambos.
+
+    Returns:
+        None
+    """
+    assert series1.shape == series2.shape, "As séries devem ter o mesmo formato."
+
+    series1 = series1.reshape(-1, series1.shape[1])
+    series2 = series2.reshape(-1, series2.shape[1])
+
+    #pega algumas amostras, aleatoriamente
+    n_samples = 500
+    indices = np.random.choice(series1.shape[0], n_samples, replace=False)
+    series1 = series1[indices]
+    series2 = series2[indices]
+
+    # Intercala os dados
+    interleaved_data = np.empty((series1.shape[0] + series2.shape[0], series1.shape[1]))
+    interleaved_labels = np.empty(series1.shape[0] + series2.shape[0], dtype=int)
+
+    interleaved_data[0::2] = series1
+    interleaved_data[1::2] = series2
+    interleaved_labels[0::2] = 0  # reais
+    interleaved_labels[1::2] = 1  # sintéticos
+
+    # Criando os subplots dinamicamente
+    if method == 'both':
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        methods = ['PCA', 'T-SNE']
+    else:
+        fig, ax = plt.subplots(1, 1, figsize=(7, 6))
+        methods = [method.upper()]
+        axes = [ax]
+
+    for ax, m in zip(axes, methods):
+        if m == 'PCA':
+            reducer = PCA(n_components=2)
+        elif m == 'T-SNE':
+            reducer = TSNE(n_components=2, perplexity=30, random_state=42)
+        else:
+            raise ValueError("Método inválido. Escolha 'pca', 'tsne' ou 'both'.")
+
+        reduced = reducer.fit_transform(interleaved_data)
+        scatter = ax.scatter(reduced[:, 0], reduced[:, 1], c=interleaved_labels, cmap='jet', alpha=0.35)
+        legend = ax.legend(*scatter.legend_elements())
+        ax.add_artist(legend)
+        legend.get_texts()[0].set_text("Real")
+        legend.get_texts()[1].set_text("Sintético")
+        #legenda para os dados artificiais e os reais
+
+        ax.set_title(f"{m}")
+    
+    #create and save a figure with the two plots
+    plt.suptitle("Comparação entre Séries Temporais Reais e Sintéticas")
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.85)
+    plt.show()
+    return fig, axes
 
 def compute_cosine_similarity(real_data, fake_data, n_samples=100):
     """

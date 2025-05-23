@@ -1,3 +1,4 @@
+from RGAN import data_utils
 from sklearn.calibration import label_binarize
 from data.DataLoader import *
 from TTSCGAN.generate_data import *
@@ -17,6 +18,26 @@ def load_data(is_train, attack_only=False):
     data_set = load_and_preprocess_data(filename, features, label_column, seq_len, is_train=is_train, attack_only=attack_only, shuffle=True)
 
     return DataLoader(data_set, batch_size=64, shuffle=True)
+
+def recreate_dataset_RCGAN(shuffle=True, seed=22):
+    synt_data, synt_labels, _, _ = data_utils.generate_synthetic("dapt2020", 59)
+    synt_data = np.transpose(synt_data, (0, 2, 1))  # Transpose to (batch_size, seq_len, num_channels)
+    synt_data = np.expand_dims(synt_data, axis=2)
+
+    #revert one hot encoding
+    synt_labels = np.argmax(synt_labels, axis=1)
+
+    # Create a DataFrame from the synthetic data
+    train_set = SynthDataset(synt_data, synt_labels)
+    # Shuffle the dataset if required
+    if shuffle:
+        np.random.seed(seed)
+        indices = np.arange(len(train_set))
+        np.random.shuffle(indices)
+        train_set.X_set = train_set.X_set[indices]
+        train_set.Y_set = train_set.Y_set[indices]
+
+    return DataLoader(train_set, batch_size=64, shuffle=True)
 
 #sempre sera para treino
 def generate_data(attack_increase=False):
@@ -239,12 +260,13 @@ def find_best_target_ratios(model, target_ratios):
     
 
 if __name__ == "__main__":
-    data = load_data(is_train=True, attack_only=False)
+    #data = load_data(is_train=True, attack_only=False)
+    data = recreate_dataset_RCGAN(shuffle=True, seed=22)
     #data = generate_data(attack_increase=False)
     #data = generate_data(attack_increase=True)
 
-    trained_model = train_torch_model(data, Classifiers.TransformerClassifier(8, 30, 5))    
-    evaluate_torch_model(load_data(is_train=False, attack_only=False), trained_model)
+    #trained_model = train_torch_model(data, Classifiers.TransformerClassifier(8, 30, 5))    
+    #evaluate_torch_model(load_data(is_train=False, attack_only=False), trained_model)
 
     #trained_model = train_torch_model(data, Classifiers.LSTMClassifier(30, 64, 5))
     #evaluate_torch_model(load_data(is_train=False, attack_only=False), trained_model)
@@ -252,8 +274,8 @@ if __name__ == "__main__":
     #trained_model = train_cpu_model(data, Classifiers.SVMClassifier())
     #evaluate_cpu_model(load_data(is_train=False, attack_only=False), trained_model)
 
-    #trained_model = train_cpu_model(data, Classifiers.RandomForestClassifierModel(50))
-    #evaluate_cpu_model(load_data(is_train=False, attack_only=False), trained_model)
+    trained_model = train_cpu_model(data, Classifiers.RandomForestClassifierModel(50))
+    evaluate_cpu_model(load_data(is_train=False, attack_only=False), trained_model)
 
 
     # grow_steps = [0.1, 0.2, 0.3, 0.4]
