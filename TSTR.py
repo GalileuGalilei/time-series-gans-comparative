@@ -1,14 +1,30 @@
-from RGAN import data_utils
-from sklearn.calibration import label_binarize
+from RGAN import RCGAN_generator as RCGANGEN
 from data.DataLoader import *
-from TTSCGAN.generate_data import *
 from classifiers import Classifiers
+from TTSCGAN.generate_data import *
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-from matplotlib import pyplot as plt
 
-model_path = "logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
 
-def load_data(is_train, attack_only=False):
+
+class SynthDataset(Dataset):
+    """
+    Synthetic Dataset for training and testing the generator models.
+
+    --- Remarks
+    While the syntethic dataset has only (X_train_set, Y_train_set), the original dataset (created by "load_and_preprocess_data") has 
+    the (X_train_set, Y_train_set, X_test_set, Y_test_set) attributes and also the (X_set, Y_set) attributes that represents the whole dataset
+    """
+    def __init__(self, X_train, Y_train):
+        self.X_train_set = X_train
+        self.Y_train_set = Y_train
+
+    def __len__(self):
+        return len(self.X_train_set)
+
+    def __getitem__(self, idx):
+        return self.X_train_set[idx], self.Y_train_set[idx]
+
+def load_original_dataset(is_train, attack_only=False):
     features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
     label_column = 'Stage'
     seq_len = 30
@@ -34,67 +50,81 @@ def recreate_dataset_RCGAN(shuffle=True, seed=22):
         np.random.seed(seed)
         indices = np.arange(len(train_set))
         np.random.shuffle(indices)
-        train_set.X_set = train_set.X_set[indices]
-        train_set.Y_set = train_set.Y_set[indices]
+        train_set.X_train_set = train_set.X_train_set[indices]
+        train_set.Y_train_set = train_set.Y_train_set[indices]
 
     return DataLoader(train_set, batch_size=64, shuffle=True)
 
-#sempre sera para treino
-def generate_data(attack_increase=False):
-    features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    data_path = "data/output.csv"
-    seq_len = 30
-    num_classes = 5
-    num_channels = 8
-    filename = "data/output.csv"
-
-    trainable_features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    seq_len = 30
-
-    train_set = load_and_preprocess_data(data_path, list(trainable_features), "Stage", seq_len, is_train=True, shuffle=True)
-    y_train = train_set.Y_set
-    x_train = train_set.X_set
+def generate_semi_syntetic_dataset(original_dataset, generator : IGenerator, target_ratios):
+    """
+    target_ratios: dicionário com {classe: proporção desejada no total final}
+    """
+    y_train = original_dataset.Y_train_set
+    x_train = original_dataset.X_train_set
 
     num_classes = max(y_train) + 1
-    num_channels = x_train.shape[1]
-    gen_net = load_model_generator(seq_len=seq_len, num_channels=num_channels, num_classes=num_classes, model_path=model_path)
+    total_original = len(y_train)
+    current_counts = np.bincount(y_train, minlength=num_classes)
 
-    if attack_increase:
-        #target_ratio = {0: 0, 1: 0.1, 2: 0.1, 3: 0.4, 4: 0.1}
-        #target_ratio = {0: 0, 1: 0.1, 2: 0.2, 3: 0.2, 4: 0.1}
-        #target_ratio = {0: 0, 1: 0.1, 2: 0.1, 3: 0.2, 4: 0.1}
-        #target_ratio = {0: 0, 1: 0.1, 2: 0.3, 3: 0.3, 4: 0.1}
-        target_ratio = {0: 0, 1: 0.3, 2: 0.2, 3: 0.2, 4: 0.2}
-        return DataLoader(recreate_balanced_dataset(train_set, gen_net, target_ratio), batch_size=64, shuffle=True)
-    
-    #terá o mesmo numero de amostras que o original
-    return DataLoader(recreate_dataset(filename, model_path, features, seq_len), batch_size=16, shuffle=True)
+    # Calcular quanto precisamos adicionar no total
+    total_extra = 0
+    for cls, target_ratio in target_ratios.items():
+        c_i = current_counts[cls]
+        t_i = target_ratio
+        extra_needed = (t_i * total_original - c_i) / (1 - t_i)
+        if extra_needed > 0:
+            total_extra += int(np.ceil(extra_needed))
 
-def generate_mixed_data(new_samples_prop=0.5, attack_only=False):
-    features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    gen_model_path = model_path
-    seq_len = 30
-    filename = "data/output.csv"
+    if total_extra == 0:
+        print("Nenhuma amostra sintética necessária.")
+        return original_dataset
 
-    dataset = create_mixed_dataset(filename, gen_model_path, features, seq_len, new_samples_prop, attack_only)
+    # Agora calcula quantas amostras gerar para cada classe proporcionalmente
+    y_synthetic = []
+    for cls, target_ratio in target_ratios.items():
+        c_i = current_counts[cls]
+        t_i = target_ratio
+        extra_needed = (t_i * total_original - c_i) / (1 - t_i)
+        if extra_needed > 0:
+            y_synthetic.extend([cls] * int(np.ceil(extra_needed)))
 
-    return DataLoader(dataset, batch_size=16, shuffle=True)
+    y_synthetic = np.array(y_synthetic)
+    fake_sigs = generator.generate(y_synthetic)
 
-def train_cpu_model(train_loader, model):
+    print(f"Total de amostras sintéticas geradas: {len(fake_sigs)}")
+
+    x_train = np.concatenate((x_train, fake_sigs), axis=0)
+    y_train = np.concatenate((y_train, y_synthetic), axis=0)
+
+    return DataLoader(SynthDataset(x_train, y_train), batch_size=64, shuffle=True)
+
+def generate_syntetic_dataset(orignal_dataset, generator : IGenerator):
+    """
+    Recreate the dataset using the generator model following the order of the original dataset labels
+    """
+    y_train = orignal_dataset.Y_train_set
+
+    fake_sigs = generator.generate(y_train)
+    orignal_dataset = SynthDataset(fake_sigs, y_train)
+
+    return DataLoader(orignal_dataset, batch_size=64, shuffle=True)
+
+
+def train_cpu_model(X_set, Y_set, model):
     print("Training Classifier")
     
     # Inicializa a função de perda e o otimizador
     criterion = nn.CrossEntropyLoss()
     #optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    model.fit(train_loader.dataset.X_set, train_loader.dataset.Y_set)
+    model.fit(X_set, Y_set)
     print("Training completed")
     return model
 
-def evaluate_cpu_model(test_data, model):
-    prediction = model.predict(test_data.dataset.X_set)
+def evaluate_cpu_model(X_set, Y_set, model):
+    prediction = model.predict(X_set)
     all_preds = np.array(prediction)
-    all_labels = np.array(test_data.dataset.Y_set)
+    all_labels = np.array(Y_set)
 
     # Calcula métricas de desempenho
     accuracy = accuracy_score(all_labels, all_preds)
@@ -218,55 +248,75 @@ def evaluate_torch_model(test_loader, model):
 
     return f1
 
-def find_best_target_ratios(model, target_ratios):
+def fine_tuning(model):
     """
     target_ratios: dicionário com {classe: proporção desejada no total final}
     """
-    model_path = "logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
+    grow_steps = [0.1, 0.15, 0.25, 0.3, 0.4]
+    target_ratios = []
+    i = 0
+    while i < len(grow_steps)**4:
+        target_ratios.append(
+            {0: 0, 1: grow_steps[i%len(grow_steps)],
+             2: grow_steps[(i//len(grow_steps))%len(grow_steps)],
+             3: grow_steps[(i//(len(grow_steps)**2))%len(grow_steps)],
+             4: grow_steps[(i//(len(grow_steps)**3))%len(grow_steps)]})
+        i += 1
+
+    print(f"Testando um total de target_ratios: {len(target_ratios)}")
+
+
+    model_path = "TTSCGAN/logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
     trainable_features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
     data_path = "data/output.csv"
     seq_len = 30
     scores = []
 
-    test_set = load_data(is_train=False, attack_only=False)
+    best_target_ratio = {}
+    best_score = 0
+
+    test_set = load_original_dataset(is_train=False, attack_only=False)
     train_set = load_and_preprocess_data(data_path, list(trainable_features), "Stage", seq_len, is_train=True, shuffle=True)
-    y_train = train_set.Y_set
-    x_train = train_set.X_set
+    generator = TTSCGANGenerator(seq_len=seq_len, num_channels=len(trainable_features)-1, num_classes=5, model_path=model_path)
+    y_train = train_set.Y_train_set
+    x_train = train_set.X_train_set
 
     num_classes = max(y_train) + 1
     num_channels = x_train.shape[1]
-    gen_net = load_model_generator(seq_len=seq_len, num_channels=num_channels, num_classes=num_classes, model_path=model_path)
 
     for target_ratio in target_ratios:
         print(f"Target ratio: {target_ratio}")
-        train_set_increased = DataLoader(recreate_balanced_dataset(train_set, gen_net, target_ratio), batch_size=64, shuffle=True)
+        train_set_increased = generate_semi_syntetic_dataset(train_set, generator, target_ratio)
 
         # roda o modelo
-        trained_model = train_cpu_model(train_set_increased, model.copy())
+        trained_model = train_cpu_model(train_set_increased.dataset.X_train_set, train_set_increased.dataset.Y_train_set, model.copy())
         #retorna f1 score
-        f1 = evaluate_cpu_model(test_set, trained_model)
+        f1 = evaluate_cpu_model(test_set.dataset.X_test_set, test_set.dataset.Y_test_set, trained_model)
         scores.append(f1)
 
+        if f1 > best_score:
+            best_score = f1
+            best_target_ratio = target_ratio
+    print(f"Melhor target ratio: {best_target_ratio} com f1 score: {best_score}")
+
         
-    # Plota os resultados
-    plt.plot(range(len(target_ratios)), scores, marker='o')
-    plt.xticks(range(len(target_ratios)), [str(r) for r in target_ratios], rotation=45)
-    plt.xlabel('Target Ratios')
-    plt.ylabel('F1 Score')
-    plt.title('F1 Score vs Target Ratios')
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
+
     
 
 if __name__ == "__main__":
-    #data = load_data(is_train=True, attack_only=False)
-    data = recreate_dataset_RCGAN(shuffle=True, seed=22)
-    #data = generate_data(attack_increase=False)
-    #data = generate_data(attack_increase=True)
+    seq_len = 30
+    num_channels = 8
+    num_classes = 5
+    target_ratios = {0: 0, 1: 0.3, 2: 0.2, 3: 0.2, 4: 0.2}
+    tts_cgan_model_path = "TTSCGAN/logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
+    original_dataset = load_original_dataset(is_train=True, attack_only=False)
+    
+    #generator = TTSCGANGenerator(seq_len=30, num_channels=8, num_classes=5, model_path=tts_cgan_model_path)
+    generator = RCGANGEN.SyntGenerator(model_path="RGAN/experiments/settings/dapt2020.txt", epoch=59)
+    data = generate_semi_syntetic_dataset(original_dataset.dataset, generator, target_ratios)
 
     #trained_model = train_torch_model(data, Classifiers.TransformerClassifier(8, 30, 5))    
-    #evaluate_torch_model(load_data(is_train=False, attack_only=False), trained_model)
+    #evaluate_torch_model(load_original_dataset(is_train=False, attack_only=False), trained_model)
 
     #trained_model = train_torch_model(data, Classifiers.LSTMClassifier(30, 64, 5))
     #evaluate_torch_model(load_data(is_train=False, attack_only=False), trained_model)
@@ -274,21 +324,7 @@ if __name__ == "__main__":
     #trained_model = train_cpu_model(data, Classifiers.SVMClassifier())
     #evaluate_cpu_model(load_data(is_train=False, attack_only=False), trained_model)
 
-    trained_model = train_cpu_model(data, Classifiers.RandomForestClassifierModel(50))
-    evaluate_cpu_model(load_data(is_train=False, attack_only=False), trained_model)
+    trained_model = train_cpu_model(data.dataset.X_train_set, data.dataset.Y_train_set, Classifiers.RandomForestClassifierModel(50))
+    evaluate_cpu_model(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model)
 
-
-    # grow_steps = [0.1, 0.2, 0.3, 0.4]
-    # target_ratio_best = {0: 0, 1: 0.4, 2: 0.2, 3: 0.3, 4: 0.4}
-    # target_ratios = []
-    # i = 0
-    # while i < len(grow_steps)**4:
-    #     target_ratios.append(
-    #         {0: 0, 1: grow_steps[i%len(grow_steps)],
-    #          2: grow_steps[(i//len(grow_steps))%len(grow_steps)],
-    #          3: grow_steps[(i//(len(grow_steps)**2))%len(grow_steps)],
-    #          4: grow_steps[(i//(len(grow_steps)**3))%len(grow_steps)]})
-    #     i += 1
-
-    # model = Classifiers.RandomForestClassifierModel(50)
-    # find_best_target_ratios(model, target_ratios)
+    #fine_tuning(Classifiers.SVMClassifier())

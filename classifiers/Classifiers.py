@@ -70,6 +70,9 @@ class SVMClassifier:
         with open(path, 'rb') as f:
             self.classifier = pickle.load(f)
 
+    def copy(self):
+        return SVMClassifier(self.classifier.kernel, self.classifier.C)
+
 
 class TransformerClassifier(nn.Module):
     def __init__(self, n_channels, seq_length, n_classes=2):

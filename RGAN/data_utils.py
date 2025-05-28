@@ -899,51 +899,29 @@ def get_eICU_with_targets(use_age=False, use_gender=False, save=False):
 
 
 ### --- TSTR ---- ####
-def generate_synthetic(identifier, epoch, predict_labels=False):
+def generate_synthetic(fake_labels, model_path, epoch):
     """
     - Load a CGAN pretrained model
     - Load its corresponding test data (+ labels)
     - Generate num_examples synthetic training data (+labels)
     - Save to format easy for training classifier on (see Eval)
     """
-    settings = json.load(open('./RGAN/experiments/settings/' + identifier + '.txt', 'r'))
+    settings = json.load(open(model_path))
     if not settings['cond_dim'] > 0:
         assert settings['predict_labels']
-        assert predict_labels
 
     # get the test data
-    print('Loading test (real) data for', identifier)
-    #load dataset
-    seq_len = 30
-    features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    data_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True, expand=False, one_hot=True)
+    print('Loading test (real) data for RCGAN')
 
-    train_labels = data_set.Y_train_set
-    train_data = data_set.X_train_set
-    n_train = train_data.shape[0]
+    n_train = len(fake_labels)
 
     print('Sampling', n_train, 'train examples from the model')
-    if not predict_labels:
-        if 'eICU' in settings['data']:
-            synth_labels = train_labels[np.random.choice(train_labels.shape[0], n_train), :]
-        else:
-            # this doesn't really work for eICU...
-            synth_labels = model.sample_C(n_train, settings['cond_dim'], settings['max_val'], settings['one_hot'])
-            synth_data = model.sample_trained_model(settings, epoch, n_train, Z_samples=None, C_samples=synth_labels)
+
+    if 'eICU' in settings['data']:
+        synth_labels = fake_labels[np.random.choice(fake_labels.shape[0], n_train), :]
     else:
-        assert settings['predict_labels']
-        synth_data = model.sample_trained_model(settings, epoch, n_train, Z_samples=None, cond_dim=0)
-        # extract the labels
-        if 'eICU' in settings['data']:
-            n_labels = 7
-            synth_labels = synth_data[:, :, -n_labels:]
-            train_labels = train_data[:, :, -n_labels:]
-        else:
-            n_labels = 6        # mnist
-            synth_labels, _ = mode(np.argmax(synth_data[:, :, -n_labels:], axis=2), axis=1)
-            train_labels, _ = mode(np.argmax(train_data[:, :, -n_labels:], axis=2), axis=1)
-        synth_data = synth_data[:, :, :-n_labels]
-        train_data = train_data[:, :, :-n_labels]
-        test_data = test_data[:, :, :-n_labels]
-    # package up, save
-    return synth_data, synth_labels, train_data, train_labels
+        # this doesn't really work for eICU...
+        synth_labels = model.sample_C(n_train, settings['cond_dim'], settings['max_val'], settings['one_hot'])
+        synth_data = model.sample_trained_model(settings, epoch, n_train, Z_samples=None, C_samples=synth_labels)
+  
+    return synth_data

@@ -48,12 +48,12 @@ class Generator(nn.Module):
         c = self.label_embedding(labels)
         x = torch.cat([z, c], 1)
         x = self.l1(x)
-        #x = self.batchNorm(x)
+        x = self.batchNorm(x)
         x = x.view(-1, self.seq_len, self.data_embed_dim)
         H, W = 1, self.seq_len
         x = self.blocks(x)
         x = x.reshape(x.shape[0], 1, x.shape[1], x.shape[2])
-        #x = self.batchNorm2d(x)
+        x = self.batchNorm2d(x)
         output = self.deconv(x.permute(0, 3, 1, 2))
         return output 
 
