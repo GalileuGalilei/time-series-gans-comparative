@@ -3,11 +3,11 @@ from __future__ import division
 from __future__ import print_function
 import warnings
 
-from TTSCGAN import cfg
+from . import cfg
 from data.DataLoader import load_and_preprocess_data
-from TTSCGAN.TransCGAN_model import *
-from TTSCGAN.cgan_functions import *
-from TTSCGAN import set_log_dir, save_checkpoint, create_logger
+from .TransCGAN_model import *
+from .cgan_functions import *
+from . import set_log_dir, save_checkpoint, create_logger
 
 import torch
 import torch.multiprocessing as mp
@@ -20,7 +20,7 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from copy import deepcopy
-from TTSCGAN.adamw import AdamW
+from .adamw import AdamW
 import random 
 import matplotlib.pyplot as plt
 import io
@@ -101,7 +101,7 @@ def main_worker(gpu, ngpus_per_node, args):
     num_classes = max(np.unique(train_set.Y_set)) + 1
 
     # import network
-    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=64, 
+    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=32, 
                         label_embed_dim=32, depth=3, num_heads=8, 
                         forward_drop_rate=0.1, attn_drop_rate=0.1)
     

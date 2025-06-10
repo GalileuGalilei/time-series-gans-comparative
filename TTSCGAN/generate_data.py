@@ -31,11 +31,6 @@ def load_model_generator(seq_len, num_channels, num_classes, model_path):
     return gen_net
 
 def generate_fake_samples(gen_net, fake_labels):
-    #set seed
-    seed = 42
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-
     new_samples = len(fake_labels)
     fake_labels = torch.tensor(fake_labels, dtype=torch.long)
 

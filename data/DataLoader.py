@@ -73,7 +73,6 @@ class load_and_preprocess_data(Dataset):
         # Remove os últimos valores para ficar um número divisível por seq_len.
         size = len(Y_set)
         #acha o maior múltiplo de seq_len menor que size
-        seq_len = 30
         while size % seq_len != 0:
             size += 1
 
@@ -128,13 +127,8 @@ class load_and_preprocess_data(Dataset):
         self.X_test_set = self.X_set[cutoff:]
         self.Y_test_set = self.Y_set[cutoff:]
 
-        if attack_only:
-            # Se for apenas ataque, remove benignos
-            self.X_set = self.X_set[self.Y_set != 0]
-            self.Y_set = self.Y_set[self.Y_set != 0]
-
-        print(f'X shape is {self.X_set.shape}')
-        print(f'Y shape is {self.Y_set.shape}')
+        print(f'X train shape is {self.X_train_set.shape}')
+        print(f'Y train shape is {self.Y_train_set.shape}')
 
         # Imprimir quantidades de amostras por classe
         uniques = np.unique(self.Y_set)

@@ -16,16 +16,17 @@ args = parse_args()
 # Definir variáveis de ambiente apenas para o subprocesso
 env = os.environ.copy()
 env["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
+env['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Desabilitar otimizações do OneDNN para evitar problemas com o TensorFlow
 
 # Construir a lista de argumentos
 command = [
-    "python", "tts_cgan/trainTTSCGAN.py",
+    "python", "-m", "TTSCGAN.trainTTSCGAN",
     "-gen_bs", "32",
     "-dis_bs", "32",
     "--dist-url", "tcp://localhost:4321",
     "--dist-backend", "nccl",
     "--world-size", "1",
-    "--max_epoch", "90",
+    "--max_epoch", "70",
     "--rank", args.rank,
   #  "--gpu", "0",
     "--dataset", "mitbith",
@@ -64,7 +65,7 @@ command = [
     "--ema_warmup", "0.1",
     "--ema", "0.9999",
     "--diff_aug", "translation,cutout,color",
-    "--exp_name", "TTS_PURE_ORIGINAL_APT_CGAN"
+    "--exp_name", "TTS_APT_CGAN"
 ]
 
 # Executar o comando

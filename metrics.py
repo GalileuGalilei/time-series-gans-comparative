@@ -1,9 +1,7 @@
+from data_utils import *
 from collections import defaultdict
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-from TTSCGAN.generate_data import recreate_dataset
 from tslearn.metrics import dtw
-from data.DataLoader import load_and_preprocess_data
+from TimeGAN import SyntheticGenerator
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -73,33 +71,10 @@ def plot_PCA_TSE(series1, series2, method='both'):
     plt.suptitle("Comparação entre Séries Temporais Reais e Sintéticas")
     plt.tight_layout()
     plt.subplots_adjust(top=0.85)
+    # Save the figure
+    plt.savefig("images/plot_pca_tse.png")
     plt.show()
     return fig, axes
-
-def compute_cosine_similarity(real_data, fake_data, n_samples=100):
-    """
-    real_data: np.array de shape (N, C, 1, T)
-    fake_data: np.array de shape (N, C, 1, T)
-    n_samples: número de pares amostrados para o cálculo
-    """
-
-    # Garantir mesmo número de amostras
-    n = min(len(real_data), len(fake_data), n_samples)
-    
-    # Achatar cada série para 1D: (C, 1, T) → (C * T)
-    real_flat = real_data[:n].reshape(n, -1)
-    fake_flat = fake_data[:n].reshape(n, -1)
-
-    # Calcular similaridade do cosseno para cada par
-    similarities = []
-    for i in range(n):
-        sim = cosine_similarity(real_flat[i].reshape(1, -1), fake_flat[i].reshape(1, -1))[0, 0]
-        similarities.append(sim)
-
-    # Retornar média e desvio padrão
-    mean_sim = np.mean(similarities)
-    std_sim = np.std(similarities)
-    return mean_sim, std_sim
 
 def compute_dtw_by_class(real_data, fake_data, labels_real, labels_fake):
     """
@@ -197,14 +172,14 @@ def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distr
 
 
 def main():
-    # Load the real data
-    data_path = "data/output.csv"
-    features_names = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    seq_len = 30
-    model_path = "logs/TTS_PURE_ORIGINAL_APT_CGAN_2025_05_08_14_35_41/Model/checkpoint"
+    tts_cgan_model_path = "TTSCGAN/logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
+    rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
     #fake_dataset = recreate_dataset(data_path, model_path, list(features_names), seq_len, shuffle=True)
-    fake_dataset = recreate_dataset(data_path, model_path, list(features_names), seq_len, shuffle=True, seed=22)
-    real_dataset = load_and_preprocess_data(data_path, list(features_names), "Stage", seq_len, is_train=True, shuffle=True, seed=22)
+    #generator = RCGANGEN.SyntGenerator(model_path=rcgan_model_path, epoch=89)
+    real_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=True, expand=False).dataset
+    generator = SyntheticGenerator("C:/Users/Alfredo/source/repos/cyberdata-improvement-tts-cgan/output/TimeGAN/stock/train/weights", real_dataset)
+    fake_dataset = generator.generate(real_dataset.Y_test_set)
+    
     #real_dataset_shuffled = load_and_preprocess_data(data_path, list(features_names), "Stage", seq_len, is_train=True, shuffle=True, seed=22)
     #real_dataset_shuffled = shuffle_within_classes(real_dataset_shuffled)
 
@@ -216,9 +191,9 @@ def main():
     #### !!!!!!!!!!!!!!!!!! ####
 
     #dynamic time warping
-    _ = compute_dtw_by_class(real_dataset.X_set, fake_dataset.X_set, real_dataset.Y_set, fake_dataset.Y_set)
+    #_ = compute_dtw_by_class(real_dataset.X_train_set, fake_dataset.X_train_set, real_dataset.Y_train_set, fake_dataset.Y_train_set)
 
-
+    plot_PCA_TSE(real_dataset.X_test_set, fake_dataset)
 
     # Calculate Cosine Similarity
     #mean_sim, std_sim = compute_cosine_similarity(real_dataset_shuffled.X_set, fake_dataset.X_set, n_samples=100)
