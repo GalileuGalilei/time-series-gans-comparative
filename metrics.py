@@ -8,6 +8,38 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
+def plot_samples(data, features_names, labels=None, offset=0, path=None, title="Samples"):
+    fig, axs = plt.subplots(2, 5, figsize=(20, 5))
+    fig.suptitle(title, fontsize=15)
+
+    # Definição de cores
+    colors = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+
+    num_samples = data.shape[0]
+    num_classes = len(features_names)
+
+    for i in range(2):
+        for j in range(5):
+            sample_idx = i * 5 + j + offset
+            if sample_idx >= num_samples:
+                break  # Evita acessar índices fora do alcance de 'data'
+            for k in range(1, num_classes):
+                if k >= len(colors):
+                    break  # Evita acessar índices fora do alcance de 'colors'
+                axs[i, j].plot(data[sample_idx, k, 0, :], color=colors[k], label=features_names[k])
+
+            # Alteração da cor de fundo com base no rótulo
+            if labels is not None:
+                if sample_idx < len(labels):
+                    axs[i, j].set_facecolor('white' if labels[sample_idx] == 0 else 'red')
+
+    # Criação da legenda
+    handles = [plt.Line2D([0], [0], color=colors[k], lw=2) for k in range(1, num_classes) if k < len(colors)]
+    fig.legend(handles, features_names[1:num_classes], loc='upper right', fontsize=12)
+
+    if path:
+        plt.savefig(path)
+
 def plot_PCA_TSE(series1, series2, method='both'):
     """
     Plota a comparação entre duas séries temporais usando PCA e T-SNE.
@@ -172,12 +204,13 @@ def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distr
 
 
 def main():
-    tts_cgan_model_path = "TTSCGAN/logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
+    tts_cgan_model_path = "logs/TTS_APT_CGAN_16_VAR_2025_06_27_23_43_06/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
     #fake_dataset = recreate_dataset(data_path, model_path, list(features_names), seq_len, shuffle=True)
-    #generator = RCGANGEN.SyntGenerator(model_path=rcgan_model_path, epoch=89)
-    real_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=True, expand=False).dataset
-    generator = SyntheticGenerator("C:/Users/Alfredo/source/repos/cyberdata-improvement-tts-cgan/output/TimeGAN/stock/train/weights", real_dataset)
+    generator = TTSCGAN.SyntheticGenerator(30, 6, 5, tts_cgan_model_path)
+    #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
+    #generator = SyntheticGenerator("C:/Users/Alfredo/source/repos/cyberdata-improvement-tts-cgan/output/TimeGAN/stock/train/weights", real_dataset)
+    real_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=False, expand=True).dataset
     fake_dataset = generator.generate(real_dataset.Y_test_set)
     
     #real_dataset_shuffled = load_and_preprocess_data(data_path, list(features_names), "Stage", seq_len, is_train=True, shuffle=True, seed=22)
@@ -194,6 +227,8 @@ def main():
     #_ = compute_dtw_by_class(real_dataset.X_train_set, fake_dataset.X_train_set, real_dataset.Y_train_set, fake_dataset.Y_train_set)
 
     plot_PCA_TSE(real_dataset.X_test_set, fake_dataset)
+    plot_samples(real_dataset.X_test_set[20:40], real_dataset.features_names, None, offset=0, path="images/real_samples.png", title="Dados reais processados")
+    plot_samples(fake_dataset, real_dataset.features_names, None, offset=0, path="images/synthetic_samples.png", title="Dados sintéticos gerados")
 
     # Calculate Cosine Similarity
     #mean_sim, std_sim = compute_cosine_similarity(real_dataset_shuffled.X_set, fake_dataset.X_set, n_samples=100)

@@ -48,6 +48,9 @@ generator_vars = ['hidden_units_g', 'seq_length', 'batch_size',
                   'num_generated_features', 'cond_dim', 'learn_scale']
 generator_settings = dict((k, settings[k]) for k in generator_vars)
 
+print('Discriminator settings:', discriminator_settings)
+print('Generator settings:', generator_settings)
+
 CGAN = (cond_dim > 0)
 if CGAN: assert not predict_labels
 

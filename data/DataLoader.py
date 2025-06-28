@@ -37,17 +37,24 @@ class load_and_preprocess_data(Dataset):
         data_train[label_column] = data_train[label_column].str.lower()
 
         # Criar um mapeamento label -> número
-        data_train[label_column] = data_train[label_column].astype('category')  
-        self.classes = dict(enumerate(data_train[label_column].cat.categories)) 
+        data_train[label_column] = data_train[label_column].map({
+            'benign': 0,
+            'reconnaissance': 1,
+            'establish foothold': 2,
+            'lateral movement': 3,
+            'data exfiltration': 4
+        })
+        # Fill any unmapped or missing values with a default (e.g., 0 or -1)
+        data_train[label_column] = data_train[label_column].fillna(0).astype(int)
 
-        # Converter labels para valores numéricos
-        data_train[label_column] = data_train[label_column].cat.codes
+        self.classes = ['benign', 'reconnaissance', 'establish foothold', 'lateral movement', 'exfiltration']
 
         # Converte as todas as colunas para numerico
-        data_train = data_train.apply(pd.to_numeric, errors='coerce')
+        #data_train = data_train.apply(pd.to_numeric, errors='coerce')
 
         #remove timestamp de features_names
         features_names.remove('Timestamp')
+        self.features_names = features_names.copy()
 
         # Remove outliers
         before_remove = len(data_train)
@@ -64,7 +71,7 @@ class load_and_preprocess_data(Dataset):
         data_resampled = data_train#.resample('0.5S').agg({**{col: 'mean' for col in features_names}, label_column: 'last'})
 
         # Remover NaNs
-        data_resampled.dropna(inplace=True)
+        #data_resampled.dropna(inplace=True)
 
         # Separar features e labels
         X_set = data_resampled.drop(columns=[label_column])
@@ -82,6 +89,10 @@ class load_and_preprocess_data(Dataset):
         if not X_set.empty:
             X_set = pd.concat([X_set, pd.DataFrame([X_set.iloc[-1]] * (size - len(X_set)), columns=X_set.columns)]).reset_index(drop=True)
 
+        # Ordena as classes por frequência (menor para maior)
+        rarity_order = list(np.argsort(np.bincount(Y_set)))
+        rarity_rank = {cls: i for i, cls in enumerate(rarity_order)}
+
         # Normalização usando entre -1 e 1
         scaler = MinMaxScaler(feature_range=(-1, 1))
         self.X_set = scaler.fit_transform(X_set)
@@ -93,9 +104,6 @@ class load_and_preprocess_data(Dataset):
             self.X_set = np.transpose(self.X_set, (0, 2, 1))
             self.X_set = np.expand_dims(self.X_set, axis=2) 
 
-        # Ordena as classes por frequência (menor para maior)
-        rarity_order = list(np.argsort(np.bincount(Y_set)))
-        rarity_rank = {cls: i for i, cls in enumerate(rarity_order)}
 
         # Inicializa Y_set com zeros no formato reduzido
         self.Y_set = np.zeros(len(Y_set) // seq_len, dtype=int)

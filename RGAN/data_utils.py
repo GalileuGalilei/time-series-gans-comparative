@@ -71,7 +71,9 @@ def get_samples_and_labels(settings):
 
     #load dataset
     seq_len = 30
-    features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
+    features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'FIN Flag Count', 'SYN Flag Count', 'Flow Duration', 'Fwd IAT Total',
+                                'Packet Length Min', 'Flow IAT Max', 'Fwd Packets/s', 'Idle Max', 'Fwd IAT Max', 'ACK Flag Count', 'Idle Mean', 'Flow IAT Std',
+                                'Fwd IAT Std', 'Idle Min', 'Timestamp']
     data_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True, expand=False, one_hot=True)
 
 

@@ -102,7 +102,7 @@ class TransformerClassifier(nn.Module, IClassifier):
         self.n_channels = n_channels
         self.seq_length = seq_length
         self.n_classes = n_classes
-        self.transformer = nn.TransformerEncoderLayer(d_model=n_channels, nhead=4, dim_feedforward=64, dropout=0.3)
+        self.transformer = nn.TransformerEncoderLayer(d_model=n_channels, nhead=3, dim_feedforward=64, dropout=0.3)
         self.fc = nn.Linear(n_channels * seq_length, n_classes)
 
     def forward(self, x):

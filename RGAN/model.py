@@ -271,8 +271,8 @@ def generator(z, hidden_units_g, seq_length, batch_size, num_generated_features,
             inputs=inputs)[0]
         rnn_outputs_2d = tf.reshape(rnn_outputs, [-1, hidden_units_g])
         logits_2d = tf.matmul(rnn_outputs_2d, W_out_G) + b_out_G
-#        output_2d = tf.multiply(tf.nn.tanh(logits_2d), scale_out_G)
-        output_2d = tf.nn.tanh(logits_2d)
+        output_2d = tf.multiply(tf.nn.tanh(logits_2d), scale_out_G)
+        #output_2d = tf.nn.sigmoid(logits_2d)
         output_3d = tf.reshape(output_2d, [-1, seq_length, num_generated_features])
     return output_3d
 

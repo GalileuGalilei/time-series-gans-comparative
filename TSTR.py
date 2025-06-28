@@ -2,6 +2,58 @@ from data_utils import *
 from classifiers.Classifiers import *
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
+class PerClassEvaluation:
+    def __init__(self, class_name, precision, recall, f1, support, false_positives, false_negatives):
+        self.class_id = class_name
+        self.precision = precision
+        self.recall = recall
+        self.f1 = f1
+        self.support = support
+        self.false_positives = false_positives
+        self.false_negatives = false_negatives
+
+    def to_csv_row(self):
+        return f"{self.class_id},{self.precision:.4f},{self.recall:.4f},{self.f1:.4f},{self.support},{self.false_positives},{self.false_negatives}"
+
+
+class EvaluationReport:
+    def __init__(self, classifier, data_type):
+        self.per_class_evaluations = []
+        self.data_type = data_type  # 'original', 'synthetic', or 'semi-synthetic'
+        self.classifier = classifier  # Name of the classifier used for this report
+
+    def add_class_evaluation(self, class_evaluation: PerClassEvaluation):
+        self.per_class_evaluations.append(class_evaluation)
+
+    def calculate_overall_metrics(self):
+        if not self.per_class_evaluations:
+            return 0.0, 0.0, 0.0
+
+        total_tp = sum(e.recall * e.support for e in self.per_class_evaluations)
+        total_fp = sum(e.false_positives for e in self.per_class_evaluations)
+        total_fn = sum(e.false_negatives for e in self.per_class_evaluations)
+
+        overall_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+        overall_recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+        overall_f1 = (2 * overall_precision * overall_recall) / (overall_precision + overall_recall) if (overall_precision + overall_recall) > 0 else 0.0
+
+        return overall_precision, overall_recall, overall_f1
+
+    def to_csv_header():
+        return "Classifier,Data Type,Class Name,Precision,Recall,F1 Score,Support,False Positives,False Negatives"
+
+    def __str__(self):
+        report_lines = []
+        for evaluation in self.per_class_evaluations:
+            line = evaluation.to_csv_row()
+            line = f"{self.classifier},{self.data_type},{line}"
+            report_lines.append(line)
+
+        overall_precision, overall_recall, overall_f1 = self.calculate_overall_metrics()
+        report_lines.append(f"{self.classifier},{self.data_type},Overall,{overall_precision:.4f},{overall_recall:.4f},{overall_f1:.4f},-,-,-")
+        
+        return "\n".join(report_lines)
+
 def train_cpu_model(X_set, Y_set, model):
     print("Training Classifier")
 
@@ -9,32 +61,39 @@ def train_cpu_model(X_set, Y_set, model):
     print("Training completed")
     return model
 
-def evaluate_cpu_model(X_set, Y_set, model):
+def evaluate_cpu_model(X_set, Y_set, model, classes_by_id=None, data_type="unknown"):
     prediction = model.predict(X_set)
     all_preds = np.array(prediction)
     all_labels = np.array(Y_set)
 
-    # Calcula métricas de desempenho
-    accuracy = accuracy_score(all_labels, all_preds)
-    precision = precision_score(all_labels, all_preds, average='weighted')
-    recall = recall_score(all_labels, all_preds, average='weighted')
-    f1 = f1_score(all_labels, all_preds, average='weighted')
-
     # Matriz de Confusão
     conf_matrix = confusion_matrix(all_labels, all_preds)
-    false_positives = conf_matrix.sum(axis=0) - np.diag(conf_matrix)
-    false_negatives = conf_matrix.sum(axis=1) - np.diag(conf_matrix)
-    # Exibe os resultados
-    print(f"Acurácia: {accuracy:.4f}")
-    print(f"Precisão: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F1-score: {f1:.4f}")
-    print("Matriz de Confusão:")
-    print(conf_matrix)
-    print(f"Falsos Positivos por classe: {false_positives}")
-    print(f"Falsos Negativos por classe: {false_negatives}")
+    conf_matrix = confusion_matrix(all_labels, all_preds)
+    class_ids = np.unique(all_labels)
+    eval_report = EvaluationReport(classifier=model.get_name(), data_type=data_type)
 
-    return accuracy, precision, recall, f1
+    for class_id in class_ids:
+        tp = conf_matrix[class_id, class_id]
+        fp = conf_matrix[:, class_id].sum() - tp
+        fn = conf_matrix[class_id, :].sum() - tp
+        support = conf_matrix[class_id, :].sum()
+
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+
+        eval_report.add_class_evaluation(PerClassEvaluation(
+            class_name = classes_by_id[class_id] if classes_by_id is not None else str(class_id),
+            precision=precision,
+            recall=recall,
+            f1=f1,
+            support=int(support),
+            false_positives=int(fp),
+            false_negatives=int(fn)
+        ))
+
+    return eval_report
+
     
 
 def train_torch_model(X_train_set, Y_train_set, model):
@@ -78,7 +137,7 @@ def train_torch_model(X_train_set, Y_train_set, model):
     print("Training completed")
     return model
 
-def evaluate_torch_model(X_test_set, Y_test_set, model):
+def evaluate_torch_model(X_test_set, Y_test_set, model, classes_by_id=None, data_type="unknown"):
     print("Evaluating Classifier")
 
     # Load the model
@@ -123,74 +182,33 @@ def evaluate_torch_model(X_test_set, Y_test_set, model):
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
 
-    # Calcula métricas de desempenho
-    accuracy = accuracy_score(all_labels, all_preds)
-    precision = precision_score(all_labels, all_preds, average='weighted')
-    recall = recall_score(all_labels, all_preds, average='weighted')
-    f1 = f1_score(all_labels, all_preds, average='weighted')
-
     # Matriz de Confusão
     conf_matrix = confusion_matrix(all_labels, all_preds)
-    false_positives = conf_matrix.sum(axis=0) - np.diag(conf_matrix)
-    false_negatives = conf_matrix.sum(axis=1) - np.diag(conf_matrix)
+    conf_matrix = confusion_matrix(all_labels, all_preds)
+    class_ids = np.unique(all_labels)
+    eval_report = EvaluationReport(classifier=model.get_name(), data_type=data_type)
 
-    # Exibe os resultados
-    print(f"Acurácia: {accuracy:.4f}")
-    print(f"Precisão: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F1-score: {f1:.4f}")
-    print("Matriz de Confusão:")
-    print(conf_matrix)
-    print(f"Falsos Positivos por classe: {false_positives}")
-    print(f"Falsos Negativos por classe: {false_negatives}")
+    for class_id in class_ids:
+        tp = conf_matrix[class_id, class_id]
+        fp = conf_matrix[:, class_id].sum() - tp
+        fn = conf_matrix[class_id, :].sum() - tp
+        support = conf_matrix[class_id, :].sum()
 
-    return accuracy, precision, recall, f1
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
-def fine_tuning(model):
-    """
-    target_ratios: dicionário com {classe: proporção desejada no total final}
-    """
-    grow_steps = [0.1, 0.15, 0.25, 0.3, 0.4]
-    target_ratios = []
-    i = 0
-    while i < len(grow_steps)**4:
-        target_ratios.append(
-            {0: 0, 1: grow_steps[i%len(grow_steps)],
-             2: grow_steps[(i//len(grow_steps))%len(grow_steps)],
-             3: grow_steps[(i//(len(grow_steps)**2))%len(grow_steps)],
-             4: grow_steps[(i//(len(grow_steps)**3))%len(grow_steps)]})
-        i += 1
+        eval_report.add_class_evaluation(PerClassEvaluation(
+            class_name = classes_by_id[class_id] if classes_by_id is not None else str(class_id),
+            precision=precision,
+            recall=recall,
+            f1=f1,
+            support=int(support),
+            false_positives=int(fp),
+            false_negatives=int(fn)
+        ))
 
-    print(f"Testando um total de target_ratios: {len(target_ratios)}")
-
-
-    model_path = "TTSCGAN/logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
-    trainable_features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    data_path = "data/output.csv"
-    seq_len = 30
-    scores = []
-
-    best_target_ratio = {}
-    best_score = 0
-
-    test_set = load_original_dataset(is_train=False, attack_only=False)
-    train_set = load_and_preprocess_data(data_path, list(trainable_features), "Stage", seq_len, is_train=True)
-    generator = TTSCGANGenerator(seq_len=seq_len, num_channels=len(trainable_features)-1, num_classes=5, model_path=model_path)
-
-    for target_ratio in target_ratios:
-        print(f"Target ratio: {target_ratio}")
-        train_set_increased = generate_semi_syntetic_dataset(train_set, generator, target_ratio)
-
-        # roda o modelo
-        trained_model = train_cpu_model(train_set_increased.dataset.X_train_set, train_set_increased.dataset.Y_train_set, model.copy())
-        #retorna f1 score
-        accuracy_score, precision, recall, f1 = evaluate_cpu_model(test_set.dataset.X_test_set, test_set.dataset.Y_test_set, trained_model)
-        scores.append(f1)
-
-        if f1 > best_score:
-            best_score = f1
-            best_target_ratio = target_ratio
-    print(f"Melhor target ratio: {best_target_ratio} com f1 score: {best_score}")
+    return eval_report
 
 def experiments_battery(generators : list[IGenerator], classifiers : list[IClassifier], original_dataset : DataLoader, save_path: str = "experiments/"):
     """
@@ -201,113 +219,66 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-
-    class ExperimentResult:
-        def __init__(self, generator_name, classifier_name, data_type, accuracy, precision, recall, f1):
-            self.generator_name = generator_name
-            self.classifier_name = classifier_name
-            self.data_type = data_type
-            self.accuracy = accuracy
-            self.precision = precision
-            self.recall = recall
-            self.f1 = f1
-
-        def __str__(self):
-            return (f"Generator: {self.generator_name}, Classifier: {self.classifier_name}, "
-                    f"Data Type: {self.data_type}, Accuracy: {self.accuracy:.4f}, "
-                    f"Precision: {self.precision:.4f}, Recall: {self.recall:.4f}, F1: {self.f1:.4f}")
-
-    results = []
+    #todo: corrigir essa nomeclatura
+    classes_by_id = original_dataset.dataset.classes
 
     for gen in generators:
+        results = []
         for clf in classifiers:
             print(f"Running experiment with generator: {gen.get_name} and classifier: {clf.get_name}")
-            # Gera o dataset sintético
-            data_synt = generate_syntetic_dataset(original_dataset.dataset, gen)
 
-            # Como o modelo é treinado em CPU ou GPU, escolhe a função de treinamento e avaliação apropriada
+            # Como alguns modelos só funcionam em CPU ou GPU, escolhe a função de treinamento e avaliação apropriada
             (train_function, eval_function) = (train_torch_model, evaluate_torch_model) if clf.is_torch_model() else (train_cpu_model, evaluate_cpu_model)
 
-            # Treina e avalia o modelo
+            # sintético
+            data_synt = generate_syntetic_dataset(original_dataset.dataset, gen)
             trained_model = train_function(data_synt.dataset.X_train_set, data_synt.dataset.Y_train_set, clf.copy())
-            accuracy_score, precision, recall, f1 = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model)
+            report = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model, classes_by_id, data_type='synthetic')
+            results.append(report)
 
-            synt_result = ExperimentResult(
-                generator_name=gen.get_name,
-                classifier_name=clf.get_name(),
-                data_type="synthetic",
-                accuracy=accuracy_score,
-                precision=precision,
-                recall=recall,
-                f1=f1
-            )
-            
-            print(synt_result)
-            results.append(synt_result)
+            print(report)
 
-            # Gera o dado semi-sintético
-            data_semi_synt = generate_semi_syntetic_dataset(original_dataset.dataset, gen,  {0: 0, 1: 0.15, 2: 0.15, 3: 0.15, 4: 0.15})
-            # Treina e avalia o modelo
+            # semi-sintético
+            data_semi_synt = generate_semi_syntetic_dataset(original_dataset.dataset, gen,  {0: 0, 1: 0.2, 2: 0.2, 3: 0.2, 4: 0.2})
             trained_model = train_function(data_semi_synt.dataset.X_train_set, data_semi_synt.dataset.Y_train_set, clf.copy())
-            accuracy_score, precision, recall, f1 = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model)
-            semi_synt_result = ExperimentResult(
-                generator_name=gen.get_name,
-                classifier_name=clf.get_name(),
-                data_type="semi-synthetic",
-                accuracy=accuracy_score,
-                precision=precision,
-                recall=recall,
-                f1=f1
-            )
-            print(semi_synt_result)
-            results.append(semi_synt_result)
+            report = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model, classes_by_id, data_type='semi-synthetic')
+            results.append(report)
 
-            # Gera o resultado com os valores originals
+            print(report)
+
+            # originais
             trained_model = train_function(original_dataset.dataset.X_train_set, original_dataset.dataset.Y_train_set, clf.copy())
-            accuracy_score, precision, recall, f1 = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model)
-            original_result = ExperimentResult(
-                generator_name=gen.get_name,
-                classifier_name=clf.get_name(),
-                data_type="original",
-                accuracy=accuracy_score,
-                precision=precision,
-                recall=recall,
-                f1=f1
-            )
-            print(original_result)
-            results.append(original_result)
+            report = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model, classes_by_id, data_type='original')
+            results.append(report)
 
+            print(report)
 
-    # Salva os resultados em um arquivo csv
-    results_df = pd.DataFrame([vars(result) for result in results])
-    results_df.to_csv(os.path.join(save_path, "experiment_results.csv"), index=False)
+        #um único csv por gerador
+        with open(os.path.join(save_path, f"{gen.get_name}_results.csv"), "w") as f:
+            f.write(EvaluationReport.to_csv_header() + "\n")
+            for report in results:
+                f.write(str(report) + "\n")
+
 
 def main():
     
-
-    tts_cgan_model_path = "TTSCGAN/logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
+    tts_cgan_model_path = "logs/TTS_APT_CGAN_16_VAR_2025_06_27_17_21_28/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
+    time_gan_model_path = "output/TimeGAN/dapt_v2/train/weights"
+
+    # Carrega os datasets originais
+    original_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=True)
     
-    RCGAN_generator = RCGANGEN.SyntGenerator(model_path=rcgan_model_path, epoch=89)
-    TTSCGAN_generator = TTSCGANGenerator(seq_len=30, num_channels=8, num_classes=5, model_path=tts_cgan_model_path)
+    # Cria os geradores
+    generators = [#RCGAN.SyntheticGenerator(model_path=rcgan_model_path, epoch=89),
+                  TTSCGAN.SyntheticGenerator(seq_len=30, num_channels=6, num_classes=5, model_path=tts_cgan_model_path)]
+                  #TimeGAN.SyntheticGenerator(model_path=time_gan_model_path, data=original_dataset.dataset)]
 
-    generators = [TTSCGAN_generator, RCGAN_generator]
-
+    # Cria os classificadores
     classifiers = [RandomForestClassifierModel(50),
                    SVMClassifier(),
-                   LSTMClassifier(8, 30, 64, 5),
-                   TransformerClassifier(8, 30, 5)]
-
-    # Carrega o dataset original
-    original_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=True)
-
-
-    #data_semi_synt = generate_semi_syntetic_dataset(original_dataset.dataset, TTSCGAN_generator,  {0: 0, 1: 0.15, 2: 0.15, 3: 0.15, 4: 0.15})
-    #trained_model = train_cpu_model(data_semi_synt.dataset.X_train_set, data_semi_synt.dataset.Y_train_set, RandomForestClassifierModel(50))
-    #accuracy_score, precision, recall, f1 = evaluate_cpu_model(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model)
-    #print(f1)
-    #
-    #return
+                   LSTMClassifier(6, 30, 64, 5),
+                   TransformerClassifier(6, 30, 5)]
 
     # Roda os experimentos
     experiments_battery(generators, classifiers, original_dataset, save_path="experiments/results")

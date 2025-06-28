@@ -2,7 +2,7 @@ from .data_utils import generate_synthetic
 from core_interfaces import IGenerator
 import numpy as np
 
-class SyntGenerator(IGenerator):
+class SyntheticGenerator(IGenerator):
     def __init__(self, model_path, epoch):
         self.epoch = epoch
         self.model_path = model_path
@@ -20,4 +20,4 @@ class SyntGenerator(IGenerator):
 
     @property
     def get_name(self):
-        return "RCGAN Generator"
+        return "RCGAN"

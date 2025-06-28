@@ -12,5 +12,6 @@ from .paths import *
 from .experiments import *
 from .tf_ops import *
 from .differential_privacy.dp_sgd import *
+from .synthetic_generator import SyntheticGenerator
 
 __all__ = []

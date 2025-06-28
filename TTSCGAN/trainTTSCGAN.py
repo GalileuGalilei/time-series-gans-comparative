@@ -94,18 +94,22 @@ def main_worker(gpu, ngpus_per_node, args):
 
     #load dataset
     seq_len = 30
-    features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
+    #features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
+    #features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'FIN Flag Count', 'SYN Flag Count', 'Flow Duration', 'Fwd IAT Total',
+    #                        'Packet Length Min', 'Flow IAT Max', 'Fwd Packets/s', 'Idle Max', 'Fwd IAT Max', 'ACK Flag Count', 'Idle Mean', 'Flow IAT Std',
+    #                        'Fwd IAT Std', 'Idle Min', 'Timestamp']
+    features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
     train_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True)
     train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
     num_channels = train_set.X_set.shape[1]
     num_classes = max(np.unique(train_set.Y_set)) + 1
 
     # import network
-    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=32, 
-                        label_embed_dim=32, depth=3, num_heads=8, 
+    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=64, 
+                        label_embed_dim=16, depth=3, num_heads=8,
                         forward_drop_rate=0.1, attn_drop_rate=0.1)
     
-    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=96, label_emb_size=32, seq_length=seq_len, depth=4, n_classes=num_classes)
+    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=64, label_emb_size=16, seq_length=seq_len, depth=4, n_classes=num_classes)
     
     
     if not torch.cuda.is_available():
@@ -167,6 +171,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # initial
     fixed_z = torch.cuda.FloatTensor(np.random.normal(0, 1, (100, args.latent_dim)))
+    
     avg_gen_net = deepcopy(gen_net).cpu()
     gen_avg_param = copy_params(avg_gen_net)
     del avg_gen_net

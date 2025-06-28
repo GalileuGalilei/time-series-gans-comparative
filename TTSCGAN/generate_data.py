@@ -4,7 +4,7 @@ from data.DataLoader import *
 import numpy as np
 from core_interfaces import IGenerator
 
-class TTSCGANGenerator(IGenerator):
+class SyntheticGenerator(IGenerator):
     def __init__(self, seq_len, num_channels, num_classes, model_path):
         self.seq_len = seq_len
         self.num_channels = num_channels
@@ -17,7 +17,7 @@ class TTSCGANGenerator(IGenerator):
 
     @property
     def get_name(self):
-        return "TTSCGAN Generator"
+        return "TTS-CGAN"
 
 def load_model_generator(seq_len, num_channels, num_classes, model_path):
     # Load the model
@@ -25,8 +25,10 @@ def load_model_generator(seq_len, num_channels, num_classes, model_path):
                     label_embed_dim=16 ,depth=3, num_heads=8, 
                     forward_drop_rate=0.1, attn_drop_rate=0.1)
     
+    
     CGAN_ckp = torch.load(model_path)
     gen_net.load_state_dict(CGAN_ckp['gen_state_dict'])
+    gen_net.eval()
 
     return gen_net
 

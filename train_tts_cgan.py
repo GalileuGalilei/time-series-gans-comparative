@@ -26,10 +26,10 @@ command = [
     "--dist-url", "tcp://localhost:4321",
     "--dist-backend", "nccl",
     "--world-size", "1",
-    "--max_epoch", "70",
+    "--max_epoch", "50",
     "--rank", args.rank,
   #  "--gpu", "0",
-    "--dataset", "mitbith",
+    "--dataset", "dapt2020",
     "--bottom_width", "8",
     "--max_iter", "500000",
     "--img_size", "32",
@@ -65,7 +65,7 @@ command = [
     "--ema_warmup", "0.1",
     "--ema", "0.9999",
     "--diff_aug", "translation,cutout,color",
-    "--exp_name", "TTS_APT_CGAN"
+    "--exp_name", "TTS_APT_CGAN_16_VAR"
 ]
 
 # Executar o comando
