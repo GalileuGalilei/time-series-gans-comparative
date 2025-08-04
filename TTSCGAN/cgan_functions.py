@@ -97,6 +97,7 @@ def train(args, gen_net: nn.Module, dis_net: nn.Module, gen_optimizer, dis_optim
 
         # Sample noise as generator input
         noise = torch.cuda.FloatTensor(np.random.normal(0, 1, (real_imgs.shape[0], args.latent_dim))).cuda(args.gpu, non_blocking=True)
+        #noise = torch.rand(real_imgs.shape[0], args.latent_dim, device=args.gpu)
         fake_img_labels = torch.randint(0, num_classes , (real_imgs.shape[0],)).cuda(args.gpu, non_blocking=True)
 
         # ---------------------

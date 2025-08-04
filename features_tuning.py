@@ -53,10 +53,10 @@ def calculate_features_score():
             # Treina o modelo
             if classifier.is_torch_model():
                 model = train_torch_model(full_dataset.X_train_set[:, :num_features, :], full_dataset.Y_train_set, classifier.copy())
-                _,_,f1_score = evaluate_torch_model(full_dataset.X_test_set[:, :num_features, :], full_dataset.Y_test_set, model).calculate_overall_metrics()
+                _,_,f1_score = evaluate_torch_model(full_dataset.X_test_set[:, :num_features, :], full_dataset.Y_test_set, model).calculate_weighted_metrics()
             else:
                 model = train_cpu_model(full_dataset.X_train_set[:, :num_features, :], full_dataset.Y_train_set, classifier.copy())
-                _,_,f1_score = evaluate_cpu_model(full_dataset.X_test_set[:, :num_features, :], full_dataset.Y_test_set, model).calculate_overall_metrics()
+                _,_,f1_score = evaluate_cpu_model(full_dataset.X_test_set[:, :num_features, :], full_dataset.Y_test_set, model).calculate_weighted_metrics()
             
             F1_scores.append(f1_score)
 

@@ -81,7 +81,7 @@ n_sigmas = 2
 sigma = tf.get_variable(name='sigma', shape=n_sigmas, initializer=tf.constant_initializer(value=np.power(heuristic_sigma_training, np.linspace(-1, 3, num=n_sigmas))))
 mmd2, that = mix_rbf_mmd2_and_ratio(eval_real_PH, eval_sample_PH, sigma)
 with tf.variable_scope("SIGMA_optimizer"):
-    sigma_solver = tf.train.RMSPropOptimizer(learning_rate=0.05).minimize(-that, var_list=[sigma])
+    sigma_solver = tf.train.RMSPropOptimizer(learning_rate=0.001).minimize(-that, var_list=[sigma])
     #sigma_solver = tf.train.AdamOptimizer().minimize(-that, var_list=[sigma])
     #sigma_solver = tf.train.AdagradOptimizer(learning_rate=0.1).minimize(-that, var_list=[sigma])
 sigma_opt_iter = 2000

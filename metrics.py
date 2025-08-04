@@ -9,7 +9,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
 def plot_samples(data, features_names, labels=None, offset=0, path=None, title="Samples"):
-    fig, axs = plt.subplots(2, 5, figsize=(20, 5))
+    fig, axs = plt.subplots(2, 2, figsize=(10, 5))
     fig.suptitle(title, fontsize=15)
 
     # Definição de cores
@@ -19,7 +19,7 @@ def plot_samples(data, features_names, labels=None, offset=0, path=None, title="
     num_classes = len(features_names)
 
     for i in range(2):
-        for j in range(5):
+        for j in range(2):
             sample_idx = i * 5 + j + offset
             if sample_idx >= num_samples:
                 break  # Evita acessar índices fora do alcance de 'data'
@@ -38,7 +38,10 @@ def plot_samples(data, features_names, labels=None, offset=0, path=None, title="
     fig.legend(handles, features_names[1:num_classes], loc='upper right', fontsize=12)
 
     if path:
-        plt.savefig(path)
+        if path.endswith('.pdf'):
+            plt.savefig(path, format='pdf')
+        else:
+            plt.savefig(path)
 
 def plot_PCA_TSE(series1, series2, method='both'):
     """
@@ -74,7 +77,7 @@ def plot_PCA_TSE(series1, series2, method='both'):
 
     # Criando os subplots dinamicamente
     if method == 'both':
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        fig, axes = plt.subplots(2, 1, figsize=(6, 12))
         methods = ['PCA', 'T-SNE']
     else:
         fig, ax = plt.subplots(1, 1, figsize=(7, 6))
@@ -100,13 +103,81 @@ def plot_PCA_TSE(series1, series2, method='both'):
         ax.set_title(f"{m}")
     
     #create and save a figure with the two plots
-    plt.suptitle("Comparação entre Séries Temporais Reais e Sintéticas")
     plt.tight_layout()
     plt.subplots_adjust(top=0.85)
-    # Save the figure
-    plt.savefig("images/plot_pca_tse.png")
+    # Save the figure as PDF
+    plt.savefig("images/plot_pca_tse.pdf", format='pdf')
     plt.show()
     return fig, axes
+
+def plot_class_PCA_TSE(series1, series2, labels1, labels2, save_path="images/by_class_pca_tse.pdf", method='both'):
+    """
+    Plots PCA and/or T-SNE projections of real and synthetic time series, colored by class and domain.
+
+    Args:
+        series1 (np.ndarray): Real sequences, shape (n_seq, seq_len, n_feat)
+        series2 (np.ndarray): Synthetic sequences, same shape as series1
+        labels1 (np.ndarray): Labels for real sequences, shape (n_seq,)
+        labels2 (np.ndarray): Labels for synthetic sequences, shape (n_seq,)
+        method (str): 'pca', 'tsne', or 'both'
+        save_path (str): File path to save the figure
+
+    Returns:
+        fig, axes: Matplotlib figure and axes
+    """
+    assert series1.shape == series2.shape, "series1 and series2 must have the same shape"
+    assert labels1.shape[0] == series1.shape[0], "labels1 must match number of sequences in series1"
+    assert labels2.shape[0] == series2.shape[0], "labels2 must match number of sequences in series2"
+
+    n_samples = min(500, series1.shape[0])
+    indices = np.random.choice(series1.shape[0], n_samples, replace=False)
+
+    # Sample sequences and labels
+    series1 = series1[indices]
+    series2 = series2[indices]
+    labels1 = labels1[indices]
+    labels2 = labels2[indices]
+
+    # Flatten each sequence into a vector
+    series1_flat = series1.reshape(n_samples, -1)
+    series2_flat = series2.reshape(n_samples, -1)
+
+    # Combine data
+    data = np.vstack([series1_flat, series2_flat])
+    domain = np.array(['Real'] * n_samples + ['Synthetic'] * n_samples)
+    class_labels = np.concatenate([labels1, labels2])
+
+    # Composite label: "Real - class 0", etc.
+    composite_labels = np.array([f"{d} - class {c}" for d, c in zip(domain, class_labels)])
+
+    # Create subplots
+    if method == 'both':
+        fig, axes = plt.subplots(2, 1, figsize=(6, 12))
+        methods = ['PCA', 'T-SNE']
+    else:
+        fig, ax = plt.subplots(1, 1, figsize=(7, 6))
+        methods = [method.upper()]
+        axes = [ax]
+
+    for ax, m in zip(axes, methods):
+        reducer = PCA(n_components=2) if m == 'PCA' else TSNE(n_components=2, perplexity=30, random_state=42)
+        reduced = reducer.fit_transform(data)
+
+        for label in np.unique(composite_labels):
+            idx = composite_labels == label
+            ax.scatter(reduced[idx, 0], reduced[idx, 1], label=label, alpha=0.6)
+
+        ax.set_title(f"{m} projection", fontsize=13)
+        ax.legend(loc='best', fontsize='small')
+
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.9)
+    plt.savefig(save_path, format='pdf')
+    plt.show()
+
+    return fig, axes
+
+
 
 def compute_dtw_by_class(real_data, fake_data, labels_real, labels_fake):
     """
@@ -204,13 +275,14 @@ def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distr
 
 
 def main():
-    tts_cgan_model_path = "logs/TTS_APT_CGAN_16_VAR_2025_06_27_23_43_06/Model/checkpoint"
+    tts_cgan_model_path = "logs/TTS_APT_CGAN_6_VAR_V4_head4_128_160/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    #fake_dataset = recreate_dataset(data_path, model_path, list(features_names), seq_len, shuffle=True)
+    time_gan_model_path = "output/TimeGAN/dapt_v6/train/weights"
+    
     generator = TTSCGAN.SyntheticGenerator(30, 6, 5, tts_cgan_model_path)
     #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
-    #generator = SyntheticGenerator("C:/Users/Alfredo/source/repos/cyberdata-improvement-tts-cgan/output/TimeGAN/stock/train/weights", real_dataset)
-    real_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=False, expand=True).dataset
+    real_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=True, expand=True).dataset
+    #generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
     fake_dataset = generator.generate(real_dataset.Y_test_set)
     
     #real_dataset_shuffled = load_and_preprocess_data(data_path, list(features_names), "Stage", seq_len, is_train=True, shuffle=True, seed=22)
@@ -224,11 +296,13 @@ def main():
     #### !!!!!!!!!!!!!!!!!! ####
 
     #dynamic time warping
-    #_ = compute_dtw_by_class(real_dataset.X_train_set, fake_dataset.X_train_set, real_dataset.Y_train_set, fake_dataset.Y_train_set)
+    _ = compute_dtw_by_class(real_dataset.X_train_set, fake_dataset, real_dataset.Y_train_set, real_dataset.Y_train_set)
 
     plot_PCA_TSE(real_dataset.X_test_set, fake_dataset)
-    plot_samples(real_dataset.X_test_set[20:40], real_dataset.features_names, None, offset=0, path="images/real_samples.png", title="Dados reais processados")
-    plot_samples(fake_dataset, real_dataset.features_names, None, offset=0, path="images/synthetic_samples.png", title="Dados sintéticos gerados")
+    #plot_class_PCA_TSE(real_dataset.X_test_set, fake_dataset, real_dataset.Y_test_set, real_dataset.Y_test_set)
+
+    plot_samples(real_dataset.X_test_set[20:40], real_dataset.features_names, None, offset=0, path="images/real_samples.pdf", title="")
+    plot_samples(fake_dataset, real_dataset.features_names, None, offset=0, path="images/synthetic_samples.pdf", title="Dados sintéticos gerados")
 
     # Calculate Cosine Similarity
     #mean_sim, std_sim = compute_cosine_similarity(real_dataset_shuffled.X_set, fake_dataset.X_set, n_samples=100)

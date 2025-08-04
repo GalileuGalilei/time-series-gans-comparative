@@ -1,6 +1,7 @@
 from data_utils import *
 from classifiers.Classifiers import *
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from collections import Counter
 
 class PerClassEvaluation:
     def __init__(self, class_name, precision, recall, f1, support, false_positives, false_negatives):
@@ -25,19 +26,20 @@ class EvaluationReport:
     def add_class_evaluation(self, class_evaluation: PerClassEvaluation):
         self.per_class_evaluations.append(class_evaluation)
 
-    def calculate_overall_metrics(self):
+    def calculate_weighted_metrics(self):
         if not self.per_class_evaluations:
             return 0.0, 0.0, 0.0
 
-        total_tp = sum(e.recall * e.support for e in self.per_class_evaluations)
-        total_fp = sum(e.false_positives for e in self.per_class_evaluations)
-        total_fn = sum(e.false_negatives for e in self.per_class_evaluations)
+        total_support = sum(e.support for e in self.per_class_evaluations)
 
-        overall_precision = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
-        overall_recall = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
-        overall_f1 = (2 * overall_precision * overall_recall) / (overall_precision + overall_recall) if (overall_precision + overall_recall) > 0 else 0.0
+        if total_support == 0:
+            return 0.0, 0.0, 0.0
 
-        return overall_precision, overall_recall, overall_f1
+        weighted_precision = sum(e.precision * e.support for e in self.per_class_evaluations) / total_support
+        weighted_recall = sum(e.recall * e.support for e in self.per_class_evaluations) / total_support
+        weighted_f1 = sum(e.f1 * e.support for e in self.per_class_evaluations) / total_support
+
+        return weighted_precision, weighted_recall, weighted_f1
 
     def to_csv_header():
         return "Classifier,Data Type,Class Name,Precision,Recall,F1 Score,Support,False Positives,False Negatives"
@@ -49,7 +51,7 @@ class EvaluationReport:
             line = f"{self.classifier},{self.data_type},{line}"
             report_lines.append(line)
 
-        overall_precision, overall_recall, overall_f1 = self.calculate_overall_metrics()
+        overall_precision, overall_recall, overall_f1 = self.calculate_weighted_metrics()
         report_lines.append(f"{self.classifier},{self.data_type},Overall,{overall_precision:.4f},{overall_recall:.4f},{overall_f1:.4f},-,-,-")
         
         return "\n".join(report_lines)
@@ -72,18 +74,18 @@ def evaluate_cpu_model(X_set, Y_set, model, classes_by_id=None, data_type="unkno
     class_ids = np.unique(all_labels)
     eval_report = EvaluationReport(classifier=model.get_name(), data_type=data_type)
 
-    for class_id in class_ids:
-        tp = conf_matrix[class_id, class_id]
-        fp = conf_matrix[:, class_id].sum() - tp
-        fn = conf_matrix[class_id, :].sum() - tp
-        support = conf_matrix[class_id, :].sum()
+    for i, class_label in enumerate(class_ids):
+        tp = conf_matrix[i, i]
+        fp = conf_matrix[:, i].sum() - tp
+        fn = conf_matrix[i, :].sum() - tp
+        support = conf_matrix[i, :].sum()
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
         eval_report.add_class_evaluation(PerClassEvaluation(
-            class_name = classes_by_id[class_id] if classes_by_id is not None else str(class_id),
+            class_name = classes_by_id[i] if classes_by_id is not None else str(i),
             precision=precision,
             recall=recall,
             f1=f1,
@@ -104,7 +106,7 @@ def train_torch_model(X_train_set, Y_train_set, model):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)  # Move o modelo para GPU (caso necessário)
 
-    epochs = 10
+    epochs = 5
     batch_size = 64
 
     # Inicializa a função de perda e o otimizador
@@ -184,22 +186,22 @@ def evaluate_torch_model(X_test_set, Y_test_set, model, classes_by_id=None, data
 
     # Matriz de Confusão
     conf_matrix = confusion_matrix(all_labels, all_preds)
-    conf_matrix = confusion_matrix(all_labels, all_preds)
+
     class_ids = np.unique(all_labels)
     eval_report = EvaluationReport(classifier=model.get_name(), data_type=data_type)
 
-    for class_id in class_ids:
-        tp = conf_matrix[class_id, class_id]
-        fp = conf_matrix[:, class_id].sum() - tp
-        fn = conf_matrix[class_id, :].sum() - tp
-        support = conf_matrix[class_id, :].sum()
+    for i, class_label in enumerate(class_ids):
+        tp = conf_matrix[i, i]
+        fp = conf_matrix[:, i].sum() - tp
+        fn = conf_matrix[i, :].sum() - tp
+        support = conf_matrix[i, :].sum()
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
         eval_report.add_class_evaluation(PerClassEvaluation(
-            class_name = classes_by_id[class_id] if classes_by_id is not None else str(class_id),
+            class_name = classes_by_id[i] if classes_by_id is not None else str(i),
             precision=precision,
             recall=recall,
             f1=f1,
@@ -221,6 +223,7 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
 
     #todo: corrigir essa nomeclatura
     classes_by_id = original_dataset.dataset.classes
+    overall_results = []
 
     for gen in generators:
         results = []
@@ -239,7 +242,9 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
             print(report)
 
             # semi-sintético
-            data_semi_synt = generate_semi_syntetic_dataset(original_dataset.dataset, gen,  {0: 0, 1: 0.2, 2: 0.2, 3: 0.2, 4: 0.2})
+            # {0: 0, 1: 0.2, 2: 0.2, 3: 0.25, 4: 0.35} => 86.6
+            # {0: 0, 1: 0.15, 2: 0.15, 3: 0.3, 4: 0.4} => 86.4
+            data_semi_synt = generate_semi_syntetic_dataset(original_dataset.dataset, gen, {0: 0, 1: 0.2, 2: 0.2, 3: 0.3, 4: 0.3})
             trained_model = train_function(data_semi_synt.dataset.X_train_set, data_semi_synt.dataset.Y_train_set, clf.copy())
             report = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model, classes_by_id, data_type='semi-synthetic')
             results.append(report)
@@ -253,21 +258,87 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
 
             print(report)
 
+        overall_results.append((gen.get_name, results))
         #um único csv por gerador
         with open(os.path.join(save_path, f"{gen.get_name}_results.csv"), "w") as f:
             f.write(EvaluationReport.to_csv_header() + "\n")
             for report in results:
                 f.write(str(report) + "\n")
 
+    with open(os.path.join(save_path, "overall_results.csv"), "w") as f:
+        f.write(f"GAN,Classifier,Data Type,Precision,Recall,F1 Score,Support,False Positives,False Negatives" + "\n")
+        for gen_name, reports in overall_results:
+            for report in reports:
+                precision, recall, f1 =  report.calculate_weighted_metrics()
+                f.write(f"{gen_name},{report.classifier},{report.data_type},{precision:.4f},{recall:.4f},{f1:.4f},-,-,-" + "\n")
+
+def fine_tuning(model):
+    """
+    target_ratios: dicionário com {classe: proporção desejada no total final}
+    """
+    grow_steps = [0.25, 0.3, 0.35, 0.4]
+    target_ratios = []
+    i = 0
+    while i < len(grow_steps)**4:
+        target_ratios.append(
+            {0: 0, 1: grow_steps[i%len(grow_steps)],
+             2: grow_steps[(i//len(grow_steps))%len(grow_steps)],
+             3: grow_steps[(i//(len(grow_steps)**2))%len(grow_steps)],
+             4: grow_steps[(i//(len(grow_steps)**3))%len(grow_steps)]})
+        i += 1
+
+    print(f"Testando um total de target_ratios: {len(target_ratios)}")
+
+
+    model_path = "logs/TTS_APT_CGAN_6_VAR_V4_head4_128_160/Model/checkpoint"
+    features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
+    data_path = "data/output.csv"
+    seq_len = 30
+    scores = []
+
+    best_target_ratio = {}
+    best_score = 0
+
+    test_set = load_original_dataset(is_train=False, attack_only=False)
+    train_set = load_and_preprocess_data(data_path, list(features_to_train), "Stage", seq_len, is_train=True)
+    generator = TTSCGAN.SyntheticGenerator(seq_len=seq_len, num_channels=6, num_classes=5, model_path=model_path)
+
+    for target_ratio in target_ratios:
+        print(f"Target ratio: {target_ratio}")
+        train_set_increased = generate_semi_syntetic_dataset(train_set, generator, target_ratio)
+
+        # roda o modelo
+        trained_model = train_cpu_model(train_set_increased.dataset.X_train_set, train_set_increased.dataset.Y_train_set, model.copy())
+        #retorna f1 score
+        recort = evaluate_cpu_model(test_set.dataset.X_test_set, test_set.dataset.Y_test_set, trained_model)
+        _, _, f1 = recort.calculate_weighted_metrics()
+        print(f"F1 Score: {f1}")
+        scores.append(f1)
+
+        if f1 > best_score:
+            best_score = f1
+            best_target_ratio = target_ratio
+    print(f"Melhor target ratio: {best_target_ratio} com f1 score: {best_score}")
+
 
 def main():
-    
-    tts_cgan_model_path = "logs/TTS_APT_CGAN_16_VAR_2025_06_27_17_21_28/Model/checkpoint"
+
+    tts_cgan_model_path = "logs/TTS_APT_CGAN_6_VAR_V5_h2g_h4d_128_160/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    time_gan_model_path = "output/TimeGAN/dapt_v2/train/weights"
+    time_gan_model_path = "output/TimeGAN/dapt_v5/train/weights"
 
     # Carrega os datasets originais
     original_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=True)
+
+    #single classifier
+    model =  RandomForestClassifierModel(50)
+    trained_model = train_cpu_model(original_dataset.dataset.X_train_set, original_dataset.dataset.Y_train_set, model.copy())
+    report = evaluate_cpu_model(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model, original_dataset.dataset.classes, data_type='original')
+
+    print(report)
+    return
+
+
     
     # Cria os geradores
     generators = [#RCGAN.SyntheticGenerator(model_path=rcgan_model_path, epoch=89),

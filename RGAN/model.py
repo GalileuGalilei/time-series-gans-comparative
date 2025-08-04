@@ -277,7 +277,7 @@ def generator(z, hidden_units_g, seq_length, batch_size, num_generated_features,
     return output_3d
 
 def discriminator(x, hidden_units_d, seq_length, batch_size, reuse=False, 
-        cond_dim=0, c=None, batch_mean=False):
+        cond_dim=0, c=None, batch_mean=True):
     with tf.variable_scope("discriminator") as scope:
         if reuse:
             scope.reuse_variables()

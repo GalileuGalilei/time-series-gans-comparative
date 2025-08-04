@@ -9,7 +9,6 @@ from .adamw import *
 from .utils import *
 from .cgan_functions import *
 from .TransCGAN_model import *
-from .trainTTSCGAN import *
 
 # Definições de variáveis globais opcionais
 __all__ = []

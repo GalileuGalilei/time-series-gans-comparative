@@ -139,14 +139,14 @@ class FeedForwardBlock(nn.Sequential):
 class Dis_TransformerEncoderBlock(nn.Sequential):
     def __init__(self,
                  emb_size=100,
-                 num_heads=4,
+                 num_heads=8,
                  drop_p=0.,
                  forward_expansion=2,
                  forward_drop_p=0.1):
         super().__init__(
             ResidualAdd(nn.Sequential(
                 nn.LayerNorm(emb_size),
-                MultiHeadAttention(emb_size, 16, drop_p),
+                MultiHeadAttention(emb_size, 4, drop_p),
                 nn.Dropout(drop_p)
             )),
             ResidualAdd(nn.Sequential(
@@ -159,7 +159,7 @@ class Dis_TransformerEncoderBlock(nn.Sequential):
 
 
 class Dis_TransformerEncoder(nn.Sequential):
-    def __init__(self, depth=8, **kwargs):
+    def __init__(self, depth=4, **kwargs):
         super().__init__(*[Dis_TransformerEncoderBlock(**kwargs) for _ in range(depth)])
         
         
@@ -169,8 +169,8 @@ class ClassificationHead(nn.Sequential):
         self.adv_head = nn.Sequential(
             Reduce('b n e -> b e', reduction='mean'),
             nn.LayerNorm(emb_size),
-            MiniBatch(emb_size, 16, 4),
-            nn.Linear(emb_size + 16 + 1, adv_classes) #mini batch(16) + std(1)
+            MiniBatch(emb_size, 9, 4),
+            nn.Linear(emb_size + 9 + 1, adv_classes) #mini batch(9) + std(1)
         )
         self.cls_head = nn.Sequential(
             Reduce('b n e -> b e', reduction='mean'),

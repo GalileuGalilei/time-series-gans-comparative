@@ -1,9 +1,9 @@
 {
 "settings_file": "",
 "data": "gp_rbf",
-"num_samples": 3295,
+"num_samples": 3091,
 "seq_length": 30,
-"num_signals": 16,
+"num_signals": 6,
 "normalise": false,
 "cond_dim": 5,
 "max_val": 1,
@@ -25,7 +25,7 @@
 "batch_mean": false,
 "learn_scale": false,
 "learning_rate": 0.1,
-"batch_size": 64,
+"batch_size": 32,
 "num_epochs": 90,
 "D_rounds": 3,
 "G_rounds": 1,
@@ -39,5 +39,5 @@
 "l2norm_bound": 1e-05,
 "batches_per_lot": 1,
 "dp_sigma": 1e-05,
-"num_generated_features": 16
+"num_generated_features": 6
 }

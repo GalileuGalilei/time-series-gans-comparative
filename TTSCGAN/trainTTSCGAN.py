@@ -100,18 +100,27 @@ def main_worker(gpu, ngpus_per_node, args):
     #                        'Fwd IAT Std', 'Idle Min', 'Timestamp']
     features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
     train_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True)
+
+    # order by class
+    train_set.order_by_class()
+
     train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
     num_channels = train_set.X_set.shape[1]
     num_classes = max(np.unique(train_set.Y_set)) + 1
 
     # import network
-    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=64, 
-                        label_embed_dim=16, depth=3, num_heads=8,
-                        forward_drop_rate=0.1, attn_drop_rate=0.1)
+    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=128, 
+                        label_embed_dim=32, depth=3, num_heads=2,
+                        forward_drop_rate=0.0, attn_drop_rate=0.0)
     
-    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=64, label_emb_size=16, seq_length=seq_len, depth=4, n_classes=num_classes)
+    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=160, label_emb_size=32, seq_length=seq_len, depth=4, n_classes=num_classes)
     
-    
+    #notes: 64x64 depth 4, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 71 synthetic 86 semi-synthetic
+    #notes: 128x160 depth 3, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 71 synthetic 86.1 semi-synthetic
+    #notes: 128x160 2 head depth 3, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 74 synthetic 86.2 semi-synthetic
+    #notes: 120x175 20 head depth 3, 25 head depth 3, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 57 synthetic 86.49 semi-synthetic => melhor no lateal moviment
+
+
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')
     elif args.distributed:
