@@ -1,169 +1,161 @@
 # load mitbih dataset
 
-import os 
 import numpy as np
 import pandas as pd
-import sys 
 from scipy import stats
-from tqdm import tqdm 
-from scipy.stats import mode  # Para calcular a moda
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-import torch 
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from sklearn.utils import resample
+from torch.utils.data import Dataset
 
 # Ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
 
-class load_and_preprocess_data(Dataset):
-    def order_by_class(self):
-        """
-        Reordena os dados para que dados da mesma classe fiquem juntos nos dados de treino.
-        """
-
-        if not self.one_hot:
-            #pega os indices de Y_train_set ordenados por classe
-            indices = np.argsort(self.Y_train_set)
-            # Reordena X_train_set e Y_train_set de acordo com os indices
-            self.X_train_set = self.X_train_set[indices]
-            self.Y_train_set = self.Y_train_set[indices]
-        else:
-            # Para one-hot encoding, precisamos ordenar de forma diferente
-            # Pega os indices de Y_train_set ordenados por classe
-            indices = np.argsort(np.argmax(self.Y_train_set, axis=1))
-            # Reordena X_train_set e Y_train_set de acordo com os indices
-            self.X_train_set = self.X_train_set[indices]
-            self.Y_train_set = self.Y_train_set[indices]
-
-
-    def __init__(self, filename, features_names, label_column, seq_len, attack_only=False, is_train=True, shuffle=True, seed=22, expand=True, one_hot=False):
-        # Carregar dataset
+class DAPT2020(Dataset):
+    def __init__(self, filename, label_column, seq_len, filter_features=None, train_test_split=0.7, is_train=True, attack_only=False, remove_outliers=True):
         self.is_train = is_train
-        self.one_hot = one_hot
+        self.seq_len = seq_len
+        self.attack_only = attack_only
+
+        # Load data
         data_train = pd.read_csv(filename)
 
-        # Selecionar apenas as colunas relevantes
-        data_train = data_train[features_names + [label_column]]
+        # Filter columns
+        if filter_features:
+            data_train = data_train[filter_features + [label_column]]
 
-        # Converter 'Timestamp' para datetime e definir como índice
-        data_train['Timestamp'] = pd.to_datetime(data_train['Timestamp'], errors='coerce')
-        data_train.set_index('Timestamp', inplace=True)
-        data_train.sort_index(inplace=True)
+        # Sort by timestamp
+        if 'Timestamp' in data_train.columns.to_list():
+            data_train['Timestamp'] = pd.to_datetime(data_train['Timestamp'], errors='coerce')
+            data_train.set_index('Timestamp', inplace=True)
+            data_train.sort_index(inplace=True)
+        else:
+            print("Warning: 'Timestamp' column not found. Sorting by index instead.")
 
-        # Converter a label para lowercase
+        # Lowercase
         data_train[label_column] = data_train[label_column].str.lower()
 
-        # Criar um mapeamento label -> número
-        data_train[label_column] = data_train[label_column].map({
-            'benign': 0,
-            'reconnaissance': 1,
-            'establish foothold': 2,
-            'lateral movement': 3,
-            'data exfiltration': 4
-        })
-        # Fill any unmapped or missing values with a default (e.g., 0 or -1)
-        #data_train[label_column] = data_train[label_column].fillna(0).astype(int)
+        # mapping labels to integers
+        if attack_only:
+            data_train[label_column] = data_train[label_column].map({
+                'benign': 0,
+                'reconnaissance': 1,
+                'establish foothold': 1,
+                'lateral movement': 1,
+                'data exfiltration': 1
+            })
+            self.classes_names = ['benign', 'anomaly']  # Only two classes: benign and anomaly
+        else:
+            data_train[label_column] = data_train[label_column].map({
+                'benign': 0,
+                'reconnaissance': 1,
+                'establish foothold': 2,
+                'lateral movement': 3,
+                'data exfiltration': 4
+            })
+            self.classes_names = ['benign', 'reconnaissance', 'establish foothold', 'lateral movement', 'data exfiltration']
 
-        self.classes = ['benign', 'reconnaissance', 'establish foothold', 'lateral movement', 'data exfiltration']
-
-        # Converte as todas as colunas para numerico
+        # To numeric
         data_train = data_train.apply(pd.to_numeric, errors='coerce')
 
-        #remove timestamp de features_names
-        features_names.remove('Timestamp')
-        self.features_names = features_names.copy()
+        # Drop NaNs
+        data_train = data_train.dropna(axis=1, how="any")
+        self.features_names = data_train.columns.to_list()
+        self.features_names.remove(label_column)
 
         # Remove outliers
-        before_remove = len(data_train)
-        for col in features_names:
-            data_train[col] = data_train[col].fillna(data_train[col].mean())
-            data_train[col] = stats.zscore(data_train[col])
-            data_train = data_train[(np.abs(data_train[col]) < 3)]
-        after_remove = len(data_train)
+        if remove_outliers:
+            before_remove = len(data_train)
+            for col in self.features_names:
+                data_train[col] = stats.zscore(data_train[col])
+                data_train = data_train[(np.abs(data_train[col]) < 4)]
+            after_remove = len(data_train)
 
-        print(f'{before_remove - after_remove} outliers removed')
-
-        # Remove NaNs
-        data_train.dropna(inplace=True)
+            print(f'{before_remove - after_remove} outliers removed')
 
         # Separate features and labels
-        X_set = data_train.drop(columns=[label_column])
-        Y_set = data_train[label_column]
+        self.X_set = data_train.drop(columns=[label_column])
+        self.Y_set = data_train[label_column]
 
-        # Standard scaler
-        scaler = StandardScaler()
-        X_set = scaler.fit_transform(X_set)
+        # Standard scaler is not recommended for time series preprocessing, review this in the future!
+        #scaler = StandardScaler()
+        #X_set = scaler.fit_transform(X_set)
 
         # Minmax scaler
         scaler = MinMaxScaler(feature_range=(-1, 1))
-        X_set = scaler.fit_transform(X_set)
+        self.X_set = scaler.fit_transform(self.X_set)
 
         # Each sequence of size "seq_len" will predict the label of the last value in that sequence
-        assert len(X_set) > seq_len, "The dataset is too small for the given sequence length."
+        assert len(self.X_set) > seq_len, "The dataset is too small for the given sequence length."
         
         # Create sequences
-        self.X_set = np.array([X_set[i:i + seq_len] for i in range(len(X_set) - seq_len - 1)])
-        self.Y_set = np.array([Y_set[i + seq_len] for i in range(len(Y_set) - seq_len - 1)])
+        self.X_indices = np.array([np.arange(i,i + seq_len) for i in range(len(self.X_set) - seq_len - 1)])
+        self.Y_indices = np.array([i + seq_len for i in range(len(self.Y_set) - seq_len - 1)])
 
-        assert len(self.X_set) == len(self.Y_set), "X_set and Y_set must have the same length."
+        assert len(self.X_indices) == len(self.Y_indices), "X_set and Y_set must have the same length. Something is wrong."
 
-        # expand dims to fit the TTS-CGAN input shape (batch, channels, 1, seq_length)
-        if expand:
-            self.X_set = np.transpose(self.X_set, (0, 2, 1))
-            self.X_set = np.expand_dims(self.X_set, axis=2) 
+        # Calculate train/test split
+        self.train_size = int(len(self.X_indices) * train_test_split)
 
-        if shuffle:
-            np.random.seed(seed)
-            # Embaralhar os dados
-            indices = np.arange(len(self.Y_set))
-            np.random.shuffle(indices)
-            self.X_set = self.X_set[indices]
-            self.Y_set = self.Y_set[indices]
-
-        # Train and test split
-        cutoff = int(len(self.Y_set) * 0.7)
-        
-        self.X_train_set = self.X_set[:cutoff]
-        self.Y_train_set = self.Y_set[:cutoff]
-        
-        self.X_test_set = self.X_set[cutoff:]
-        self.Y_test_set = self.Y_set[cutoff:]
-
-        print(f'X train shape is {self.X_train_set.shape}')
-        print(f'Y train shape is {self.Y_train_set.shape}')
-
-        # Imprimir quantidades de amostras por classe
+        # Print dataset info
         uniques = np.unique(self.Y_set)
         classes = len(uniques)
         i = 0
+        print(f"Dataset loaded with {len(self.X_indices)} samples and {len(self.features_names)} features.")
         while i < classes:
             if attack_only and i == 0: # Se for apenas ataque, ignora a classe 0 (benigno)
                 classes += 1
                 i += 1
                 continue
             total_per_class = len(self.Y_set[self.Y_set == i])
-            print(f'Quantidade de amostras da classe {self.classes[i]}: {total_per_class}')
+            print(f'Number of samples of class {self.classes_names[i]}: {total_per_class}')
             i += 1
-
-        if one_hot:
-            self.Y_set = np.eye(len(self.classes))[self.Y_set]
-            self.Y_train_set = np.eye(len(self.classes))[self.Y_train_set]
-            self.Y_test_set = np.eye(len(self.classes))[self.Y_test_set]
+        print(f"Train size: {self.train_size}, Test size: {len(self.X_indices) - self.train_size}")
         
+    def shuffle(self, seed=22):
+        np.random.seed(seed)
+        
+        indices = np.arange(len(self.Y_indices))
+        np.random.shuffle(indices)
+
+        self.X_indices = self.X_indices[indices]
+        self.Y_indices = self.Y_indices[indices]
+
+    def expand(self): #todo: with indices do not work, fix later
+        # expand dims to fit the TTS-CGAN input shape (batch, channels, 1, seq_length)
+        self.X_set = np.transpose(self.X_set, (0, 2, 1))
+        self.X_set = np.expand_dims(self.X_set, axis=2) 
+
+    def one_hot_encode(self):
+        self.Y_set = np.eye(len(self.classes_names))[self.Y_set]
+
+    @property
+    def X_test(self):
+        return self.X_set[self.X_indices[self.train_size:]]
+    
+    @property
+    def Y_test(self):
+        return self.Y_set[self.Y_indices[self.train_size:]]
+    
+    @property
+    def X_train(self):
+        return self.X_set[self.X_indices[:self.train_size]]
+    
+    @property
+    def Y_train(self):
+        return self.Y_set[self.Y_indices[:self.train_size]]
+
     def __len__(self):
         if self.is_train:
-            return len(self.X_train_set)
+            return self.train_size
         else:
-            return len(self.X_test_set)
+            return len(self.X_indices) - self.train_size
     
     def __getitem__(self, idx):
         if self.is_train:
-            return self.X_train_set[idx], self.Y_train_set[idx]
+            if idx >= self.train_size:
+                raise IndexError("Index out of range for training set.")
+            return self.X_set[self.X_indices[idx]], self.Y_set[self.Y_indices[idx]]
         else:
-            return self.X_test_set[idx], self.Y_test_set[idx]
+            return self.X_set[self.X_indices[idx + self.train_size]], self.Y_set[self.Y_indices[idx + self.train_size]]

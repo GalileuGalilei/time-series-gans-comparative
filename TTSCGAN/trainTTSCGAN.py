@@ -4,7 +4,7 @@ from __future__ import print_function
 import warnings
 
 from . import cfg
-from data.DataLoader import load_and_preprocess_data
+from data.DataLoader import DAPT2020
 from .TransCGAN_model import *
 from .cgan_functions import *
 from . import set_log_dir, save_checkpoint, create_logger
@@ -99,7 +99,7 @@ def main_worker(gpu, ngpus_per_node, args):
     #                        'Packet Length Min', 'Flow IAT Max', 'Fwd Packets/s', 'Idle Max', 'Fwd IAT Max', 'ACK Flag Count', 'Idle Mean', 'Flow IAT Std',
     #                        'Fwd IAT Std', 'Idle Min', 'Timestamp']
     features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
-    train_set = load_and_preprocess_data("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True)
+    train_set = DAPT2020("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True)
 
     # order by class
     train_set.order_by_class()

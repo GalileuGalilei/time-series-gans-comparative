@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from classifiers.Classifiers import *
 import os
-from data.DataLoader import load_and_preprocess_data
+from data.DataLoader import DAPT2020
 from TSTR import evaluate_cpu_model, evaluate_torch_model, train_cpu_model, train_torch_model
 
 #foram removidas ip, protocol e 'Src Port', pois não são numéricas e não são informações temporais
@@ -36,7 +36,7 @@ original_features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packet
 
 def calculate_features_score():
 
-    full_dataset = load_and_preprocess_data("data/output.csv", feta_srd_possible_features, 'Stage', 30, is_train=True, attack_only=False, shuffle=True, expand=True)
+    full_dataset = DAPT2020("data/output.csv", feta_srd_possible_features, 'Stage', 30, is_train=True, attack_only=False, shuffle=True, expand=True)
 
     #f1 score para cada classificador dependendo do número de features, ordenadas por correlação absoluta
     header = "num_features,RF,SVM,LSTM,Transformer,Average\n" 
@@ -67,6 +67,55 @@ def calculate_features_score():
     with open("experiments/features_tuning_results.csv", "w") as f:
         print("Saving results to features_tuning_results.csv")
         f.write(header)
+'''
+def fine_tuning(model):
+    """
+    target_ratios: dicionário com {classe: proporção desejada no total final}
+    """
+    grow_steps = [0.25, 0.3, 0.35, 0.4]
+    target_ratios = []
+    i = 0
+    while i < len(grow_steps)**4:
+        target_ratios.append(
+            {0: 0, 1: grow_steps[i%len(grow_steps)],
+             2: grow_steps[(i//len(grow_steps))%len(grow_steps)],
+             3: grow_steps[(i//(len(grow_steps)**2))%len(grow_steps)],
+             4: grow_steps[(i//(len(grow_steps)**3))%len(grow_steps)]})
+        i += 1
+
+    print(f"Testando um total de target_ratios: {len(target_ratios)}")
+
+
+    model_path = "logs/TTS_APT_CGAN_6_VAR_V4_head4_128_160/Model/checkpoint"
+    features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
+    data_path = "data/output.csv"
+    seq_len = 30
+    scores = []
+
+    best_target_ratio = {}
+    best_score = 0
+
+    test_set = load_original_dataset(is_train=False, attack_only=False)
+    train_set = DAPT2020(data_path, list(features_to_train), "Stage", seq_len, is_train=True)
+    generator = TTSCGAN.SyntheticGenerator(seq_len=seq_len, num_channels=6, num_classes=5, model_path=model_path)
+
+    for target_ratio in target_ratios:
+        print(f"Target ratio: {target_ratio}")
+        train_set_increased = generate_semi_syntetic_dataset(train_set, generator, target_ratio)
+
+        # roda o modelo
+        trained_model = train_cpu_model(train_set_increased.dataset.X_train_set, train_set_increased.dataset.Y_train_set, model.copy())
+        #retorna f1 score
+        recort = evaluate_cpu_model(test_set.dataset.X_test_set, test_set.dataset.Y_test_set, trained_model)
+        _, _, f1 = recort.calculate_weighted_metrics()
+        print(f"F1 Score: {f1}")
+        scores.append(f1)
+
+        if f1 > best_score:
+            best_score = f1
+            best_target_ratio = target_ratio
+    print(f"Melhor target ratio: {best_target_ratio} com f1 score: {best_score}")
+'''
 
 if __name__ == "__main__":
 

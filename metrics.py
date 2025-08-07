@@ -281,7 +281,7 @@ def main():
     
     generator = TTSCGAN.SyntheticGenerator(30, 6, 5, tts_cgan_model_path)
     #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
-    real_dataset = load_original_dataset(is_train=True, attack_only=False, Shuffle=True, expand=True).dataset
+    real_dataset = load_original_dataset(is_train=True, attack_only=False, shuffle=True, expand=True).dataset
     #generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
     fake_dataset = generator.generate(real_dataset.Y_test_set)
     

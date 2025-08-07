@@ -34,12 +34,12 @@ class RandomForestClassifierModel(IClassifier):
     def fit(self, X, y):
         X = np.array(X)  # Ensure X is a NumPy array
         y = np.array(y)  # Ensure y is a NumPy array
-        X = X.squeeze(2).reshape(X.shape[0], -1)  # Reshape X to (batch, 30*channels)
+        X = X.reshape(X.shape[0], -1)  # Reshape X to (batch, 30*channels)
         self.classifier.fit(X, y)
 
     def predict(self, X):
         X = np.array(X)  # Ensure X is a NumPy array
-        X = X.squeeze(2).reshape(X.shape[0], -1)  # Reshape X to (batch, 30*channels)
+        X = X.reshape(X.shape[0], -1)  # Reshape X to (batch, 30*channels)
         return self.classifier.predict(X)
     
     def get_name(self):
@@ -56,12 +56,12 @@ class SVMClassifier(IClassifier):
     def fit(self, X, y):
         X = np.array(X)  # Ensure X is a NumPy array
         y = np.array(y)  # Ensure y is a NumPy array
-        X = X.squeeze(2).reshape(X.shape[0], -1)  # Reshape X to (batch, 30*channels)
+        X = X.reshape(X.shape[0], -1)  # Reshape X to (batch, 30*channels)
         self.classifier.fit(X, y)
 
     def predict(self, X):
         X = np.array(X)  # Ensure X is a NumPy array
-        X = X.squeeze(2).reshape(X.shape[0], -1)  # Reshape X to (batch, 30*channels)
+        X = X.reshape(X.shape[0], -1)  # Reshape X to (batch, 30*channels)
         return self.classifier.predict(X)
     
     def get_name(self):
@@ -84,8 +84,8 @@ class LSTMClassifier(nn.Module, IClassifier):
 
     def forward(self, x):
         # x: (batch_size, n_channels, 1, seq_length)
-        x = x.squeeze(2)  # → (batch_size, n_channels, seq_length)
-        x = x.permute(0, 2, 1)  # → (batch_size, seq_length, n_channels)
+        #x = x.squeeze(2)  # → (batch_size, n_channels, seq_length)
+        #x = x.permute(0, 2, 1)  # → (batch_size, seq_length, n_channels)
         lstm_out, _ = self.lstm(x)
         last_hidden = lstm_out[:, -1, :]
         output = self.fc(last_hidden)
@@ -124,8 +124,8 @@ class TransformerClassifier(nn.Module, IClassifier):
         self.fc = nn.Linear(n_channels * seq_length, n_classes)
 
     def forward(self, x):
-        x = x.squeeze(2)  # Remove the singleton dimension
-        x = x.permute(0, 2, 1)  # (batch, seq_length, n_channels)
+        #x = x.squeeze(2)  # Remove the singleton dimension
+        #x = x.permute(0, 2, 1)  # (batch, seq_length, n_channels)
         x = self.pos_encoder(x)
         x = x.permute(1, 0, 2)  # (seq_length, batch, n_channels) for transformer
         x = self.transformer(x)

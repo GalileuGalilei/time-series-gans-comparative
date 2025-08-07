@@ -3,6 +3,7 @@ import RGAN as RCGAN
 import TimeGAN
 from data.DataLoader import *
 from core_interfaces import IGenerator
+from torch.utils.data import Dataset, DataLoader
 
 class SynthDataset(Dataset):
     """
@@ -22,28 +23,24 @@ class SynthDataset(Dataset):
     def __getitem__(self, idx):
         return self.X_train_set[idx], self.Y_train_set[idx]
 
-def load_original_dataset(is_train, attack_only=False, Shuffle=True, expand=True):
-    features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    #features = [ 'Timestamp', 'SYN Flag Count', 'Src Port', 'Flow Duration', 'Fwd IAT Total', 'Packet Length Min', 'Fwd Packets/s', 'Flow IAT Max', 'Fwd IAT Max']
-    eta_sqr_features = ['Bwd Packets/s', 'Flow Packets/s', 'FIN Flag Count', 'SYN Flag Count', 'Flow Duration', 'Fwd IAT Total',
-                                'Packet Length Min', 'Flow IAT Max', 'Fwd Packets/s', 'Idle Max', 'Fwd IAT Max', 'ACK Flag Count', 'Idle Mean', 'Flow IAT Std',
-                                'Fwd IAT Std', 'Idle Min', 'Timestamp']
+def load_original_dataset(is_train, attack_only=False, shuffle=True):
     features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
     label_column = 'Stage'
+    filename = "data/dapt2020.csv"
     seq_len = 30
-    filename = "data/output.csv"
     
-    #ja embaralhado por padrao
-    data_set = load_and_preprocess_data(filename, features_to_train, label_column, seq_len, is_train=is_train, attack_only=attack_only, shuffle=Shuffle, expand=expand)
+    data_set = DAPT2020(filename, label_column, seq_len, filter_features=features_to_train, is_train=is_train, attack_only=attack_only)
+    if shuffle:
+        data_set.shuffle()
 
     return DataLoader(data_set, batch_size=64)
 
-def generate_semi_syntetic_dataset(original_dataset, generator : IGenerator, target_ratios):
+def generate_semi_syntetic_dataset(original_dataset : DAPT2020, generator : IGenerator, target_ratios):
     """
     target_ratios: dicionário com {classe: proporção desejada no total final}
     """
-    y_train = original_dataset.Y_train_set.copy()
-    x_train = original_dataset.X_train_set.copy()
+    y_train = original_dataset.Y_train
+    x_train = original_dataset.X_train
 
     num_classes = max(y_train) + 1
     total_original = len(y_train)
@@ -90,11 +87,11 @@ def generate_semi_syntetic_dataset(original_dataset, generator : IGenerator, tar
 
     return DataLoader(SynthDataset(x_train, y_train), batch_size=64)
 
-def generate_syntetic_dataset(orignal_dataset, generator : IGenerator, shuffle=True):
+def generate_syntetic_dataset(orignal_dataset : DAPT2020, generator : IGenerator, shuffle=True):
     """
     Recreate the dataset using the generator model following the order of the original dataset labels
     """
-    y_train = orignal_dataset.Y_train_set.copy()
+    y_train = orignal_dataset.Y_train
 
     fake_sigs = generator.generate(y_train)
     syntetic_dataset = SynthDataset(fake_sigs, y_train)
