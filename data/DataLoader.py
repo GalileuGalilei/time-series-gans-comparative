@@ -76,7 +76,7 @@ class DAPT2020(Dataset):
 
         # Separate features and labels
         self.X_set = data_train.drop(columns=[label_column])
-        self.Y_set = data_train[label_column]
+        self.Y_set = data_train[label_column].to_numpy()
 
         # Standard scaler is not recommended for time series preprocessing, review this in the future!
         #scaler = StandardScaler()
@@ -123,12 +123,22 @@ class DAPT2020(Dataset):
         self.Y_indices = self.Y_indices[indices]
 
     def expand(self): #todo: with indices do not work, fix later
-        # expand dims to fit the TTS-CGAN input shape (batch, channels, 1, seq_length)
-        self.X_set = np.transpose(self.X_set, (0, 2, 1))
-        self.X_set = np.expand_dims(self.X_set, axis=2) 
+        # expand dims to fit the TTS-CGAN input shape (channels, 1, seq_length)
+        self.X_set = np.expand_dims(self.X_set, axis=1) # -> (batch, 1, channels)
 
     def one_hot_encode(self):
         self.Y_set = np.eye(len(self.classes_names))[self.Y_set]
+
+    def order_by_class(self, batch_size):
+        # Order the dataset by class, so that each batch contains samples from only one class
+        indices = np.arange(len(self.Y_indices))
+        ordered_indices = []
+        for i in range(len(self.classes_names)):
+            class_indices = indices[self.Y_set[self.Y_indices] == i]
+            np.random.shuffle(class_indices)
+            ordered_indices.extend(class_indices[:batch_size])
+        self.X_indices = self.X_indices[ordered_indices]
+        self.Y_indices = self.Y_indices[ordered_indices]
 
     @property
     def X_test(self):

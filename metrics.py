@@ -26,7 +26,7 @@ def plot_samples(data, features_names, labels=None, offset=0, path=None, title="
             for k in range(1, num_classes):
                 if k >= len(colors):
                     break  # Evita acessar índices fora do alcance de 'colors'
-                axs[i, j].plot(data[sample_idx, k, 0, :], color=colors[k], label=features_names[k])
+                axs[i, j].plot(data[sample_idx, k, :], color=colors[k], label=features_names[k])
 
             # Alteração da cor de fundo com base no rótulo
             if labels is not None:
@@ -194,7 +194,9 @@ def compute_dtw_by_class(real_data, fake_data, labels_real, labels_fake):
         if label != labels_fake[i]:
             continue  # ignora se o rótulo da real e da fake não batem (opcional)
 
-        dist = dtw(real_data[i].reshape(1, -1), fake_data[i].reshape(1, -1))
+        s1 = real_data[i].reshape(1, -1)
+        s2 = fake_data[i].reshape(1, -1)
+        dist = dtw(s1, s2)
         distances_by_class[label].append(dist)
 
     print("DTW por classe:")
@@ -275,15 +277,15 @@ def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distr
 
 
 def main():
-    tts_cgan_model_path = "logs/TTS_APT_CGAN_6_VAR_V4_head4_128_160/Model/checkpoint"
+    tts_cgan_model_path = "logs/TTS_APT_CGAN_6_VAR_V_2025_08_12_16_20_33/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    time_gan_model_path = "output/TimeGAN/dapt_v6/train/weights"
+    time_gan_model_path = "output/TimeGAN/stock/train/weights"
     
-    generator = TTSCGAN.SyntheticGenerator(30, 6, 5, tts_cgan_model_path)
+    #generator = TimeGAN.SyntheticGenerator(30, 10, 5, tts_cgan_model_path)
     #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
-    real_dataset = load_original_dataset(is_train=True, attack_only=False, shuffle=True, expand=True).dataset
-    #generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
-    fake_dataset = generator.generate(real_dataset.Y_test_set)
+    real_dataset = load_original_dataset(is_train=True, attack_only=False, shuffle=True).dataset
+    generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
+    fake_dataset = generator.generate(real_dataset.Y_test)
     
     #real_dataset_shuffled = load_and_preprocess_data(data_path, list(features_names), "Stage", seq_len, is_train=True, shuffle=True, seed=22)
     #real_dataset_shuffled = shuffle_within_classes(real_dataset_shuffled)
@@ -296,12 +298,12 @@ def main():
     #### !!!!!!!!!!!!!!!!!! ####
 
     #dynamic time warping
-    _ = compute_dtw_by_class(real_dataset.X_train_set, fake_dataset, real_dataset.Y_train_set, real_dataset.Y_train_set)
+    #_ = compute_dtw_by_class(real_dataset.X_test, fake_dataset, real_dataset.Y_test, real_dataset.Y_test)
 
-    plot_PCA_TSE(real_dataset.X_test_set, fake_dataset)
+    plot_PCA_TSE(real_dataset.X_test, fake_dataset)
     #plot_class_PCA_TSE(real_dataset.X_test_set, fake_dataset, real_dataset.Y_test_set, real_dataset.Y_test_set)
 
-    plot_samples(real_dataset.X_test_set[20:40], real_dataset.features_names, None, offset=0, path="images/real_samples.pdf", title="")
+    plot_samples(real_dataset.X_test[20:40], real_dataset.features_names, None, offset=0, path="images/real_samples.pdf", title="")
     plot_samples(fake_dataset, real_dataset.features_names, None, offset=0, path="images/synthetic_samples.pdf", title="Dados sintéticos gerados")
 
     # Calculate Cosine Similarity

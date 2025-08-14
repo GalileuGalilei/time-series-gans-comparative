@@ -88,6 +88,9 @@ def train(args, gen_net: nn.Module, dis_net: nn.Module, gen_optimizer, dis_optim
     
     for iter_idx, (real_imgs, real_img_labels) in enumerate(tqdm(train_loader)):
         global_steps = writer_dict['train_global_steps']
+
+        # transpose real_imgs from (batch, seq_len, 1, channels) to (batch, channels, 1, seq_len)
+        real_imgs = real_imgs.permute(0, 3, 2, 1)
         
         # Adversarial ground truths
         real_imgs = real_imgs.type(torch.cuda.FloatTensor).cuda(args.gpu, non_blocking=True)

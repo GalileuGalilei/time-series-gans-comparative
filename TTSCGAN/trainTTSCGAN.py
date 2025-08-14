@@ -94,26 +94,25 @@ def main_worker(gpu, ngpus_per_node, args):
 
     #load dataset
     seq_len = 30
-    #features_to_train = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    #features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'FIN Flag Count', 'SYN Flag Count', 'Flow Duration', 'Fwd IAT Total',
-    #                        'Packet Length Min', 'Flow IAT Max', 'Fwd Packets/s', 'Idle Max', 'Fwd IAT Max', 'ACK Flag Count', 'Idle Mean', 'Flow IAT Std',
-    #                        'Fwd IAT Std', 'Idle Min', 'Timestamp']
-    features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
-    train_set = DAPT2020("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True)
+    features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
+
+    train_set = DAPT2020("data/dapt2020.csv", "Stage", seq_len, filter_features=features_to_train, is_train=True, attack_only=False)
+    train_set.shuffle()
+    train_set.expand()  # expand dims to fit the TTS-CGAN input shape (batch, channels, 1, seq_length)
 
     # order by class
-    train_set.order_by_class()
+    #train_set.order_by_class()
 
     train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
-    num_channels = train_set.X_set.shape[1]
+    num_channels = train_set.X_set.shape[-1]
     num_classes = max(np.unique(train_set.Y_set)) + 1
 
     # import network
-    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=128, 
-                        label_embed_dim=32, depth=3, num_heads=2,
+    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=64, 
+                        label_embed_dim=32, depth=3, num_heads=4,
                         forward_drop_rate=0.0, attn_drop_rate=0.0)
     
-    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=160, label_emb_size=32, seq_length=seq_len, depth=4, n_classes=num_classes)
+    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=64, label_emb_size=32, seq_length=seq_len, depth=4, n_classes=num_classes)
     
     #notes: 64x64 depth 4, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 71 synthetic 86 semi-synthetic
     #notes: 128x160 depth 3, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 71 synthetic 86.1 semi-synthetic

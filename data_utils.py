@@ -24,7 +24,7 @@ class SynthDataset(Dataset):
         return self.X_train_set[idx], self.Y_train_set[idx]
 
 def load_original_dataset(is_train, attack_only=False, shuffle=True):
-    features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
+    features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
     label_column = 'Stage'
     filename = "data/dapt2020.csv"
     seq_len = 30
