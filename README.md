@@ -30,11 +30,14 @@ todo
 ## 🚀 Getting Started
 
 ### 1. Requirements
-todo
+Since this project has many libraries, please use [Conda](https://www.anaconda.com) to install all the necessary dependencies:
+- git clone https://github.com/GalileuGalilei/time-series-gans-comparative
+- conda env create -f environment.yml
+- conda activate time-series-gans
 
-### 2. Download DAPT2020
+### 2. Download DAPT2020 dataset
 - download the csv files at: https://www.kaggle.com/datasets/sowmyamyneni/dapt2020
-- place them under `data/`
+- use `python load_csv_data --data_path "path/to/csv/folder"` to combine the csv files into a single csv. The new file will be saved in the `data/` folder by default.
 
 ### 3. Training
 - python -m TTSCGAN.train
