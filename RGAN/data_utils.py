@@ -8,19 +8,19 @@ import random
 import os
 
 from . import data_utils
-from data.DataLoader import DAPT2020
+from data.data_loader import DAPT2020
 from . import paths
 
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import multivariate_normal, invgamma, mode
 from scipy.special import gamma
-import cv2
 from functools import partial
 from math import ceil
 from . import model
 
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.preprocessing import MinMaxScaler
+from skimage.transform import resize
 
 # --- to do with loading --- #
 def get_samples_and_labels(settings):
@@ -348,8 +348,8 @@ def load_resized_mnist_0_5(new_size, randomize=False):
     samples = samples[np.in1d(labels,[0,1,2,3,4,5])]
     labels = labels[np.in1d(labels,[0,1,2,3,4,5])]
     if new_size != 28:
-        resized_imgs = [cv2.resize(img.reshape([28,28]), [new_size,new_size], interp='lanczos').ravel()[np.newaxis].T
-                        for img in samples]
+        resized_imgs = [resize(img.reshape([28, 28]), (new_size, new_size), order=3, mode='reflect', anti_aliasing=True).ravel()[np.newaxis].T
+                for img in samples]
         resized_imgs = np.array(resized_imgs)
         resized_imgs = resized_imgs.astype(float)
         resized_imgs /= 255.0
@@ -369,7 +369,7 @@ def load_resized_mnist(new_size, from_to_digits=(0,2), randomize=False):
     samples = samples[np.in1d(labels,np.arange(from_to_digits[0], from_to_digits[1]+1))]
     labels = labels[np.in1d(labels,np.arange(from_to_digits[0], from_to_digits[1]+1))]
     if new_size != 28:
-        resized_imgs = [cv2.resize(img.reshape([28,28]), [new_size,new_size], interp='lanczos').ravel()[np.newaxis].T
+        resized_imgs = [resize(img.reshape([28,28]), [new_size,new_size], interp='lanczos').ravel()[np.newaxis].T
                         for img in samples]
         resized_imgs = np.array(resized_imgs)
         resized_imgs = resized_imgs.astype(float)

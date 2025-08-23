@@ -1,7 +1,7 @@
 import TTSCGAN.generate_data as TTSCGAN
 import RGAN as RCGAN
 import TimeGAN
-from data.DataLoader import *
+from data.data_loader import *
 from core_interfaces import IGenerator
 from torch.utils.data import Dataset, DataLoader
 

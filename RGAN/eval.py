@@ -25,7 +25,7 @@ from keras.layers import Conv2D, MaxPooling2D
 from keras.backend import clear_session
 
 import model
-import data_utils
+import data.data_utils as data_utils
 import plotting
 
 import pickle

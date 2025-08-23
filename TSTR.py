@@ -1,4 +1,4 @@
-from data_utils import *
+from data.data_utils import *
 from classifiers.Classifiers import *
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from collections import Counter

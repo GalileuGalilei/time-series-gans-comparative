@@ -8,7 +8,7 @@ import numpy as np
 from torchvision.transforms import Compose, Resize, ToTensor
 from einops import rearrange, reduce, repeat
 from einops.layers.torch import Rearrange, Reduce
-from torchsummary import summary
+from torchinfo import summary
 
 class Generator(nn.Module):
     def __init__(self, seq_len=150, channels=3, num_classes=9, latent_dim=100, data_embed_dim=10, 

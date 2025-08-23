@@ -1,6 +1,6 @@
 from TTSCGAN.TransCGAN_model import *
 import pandas as pd
-from data.DataLoader import *
+from data.data_loader import *
 import numpy as np
 from core_interfaces import IGenerator
 

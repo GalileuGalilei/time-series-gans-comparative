@@ -34,7 +34,7 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 from .options import Options
 from .lib import TimeGAN
-from data.DataLoader import DAPT2020
+from data.data_loader import DAPT2020
 
 
 def train():

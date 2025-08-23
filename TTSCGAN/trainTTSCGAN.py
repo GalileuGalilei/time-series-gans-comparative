@@ -4,7 +4,7 @@ from __future__ import print_function
 import warnings
 
 from . import cfg
-from data.DataLoader import DAPT2020
+from data.data_loader import DAPT2020
 from .TransCGAN_model import *
 from .cgan_functions import *
 from . import set_log_dir, save_checkpoint, create_logger

@@ -1,7 +1,7 @@
 from .lib import TimeGAN
 from .options import Options
 from core_interfaces import IGenerator
-from data.DataLoader import DAPT2020
+from data.data_loader import DAPT2020
 import numpy as np
 
 class SyntheticGenerator(IGenerator):

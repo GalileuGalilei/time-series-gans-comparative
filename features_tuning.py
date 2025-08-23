@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from classifiers.Classifiers import *
 import os
-from data.DataLoader import DAPT2020
+from data.data_loader import DAPT2020
 from TSTR import evaluate_cpu_model, evaluate_torch_model, train_cpu_model, train_torch_model
 
 #foram removidas ip, protocol e 'Src Port', pois não são numéricas e não são informações temporais

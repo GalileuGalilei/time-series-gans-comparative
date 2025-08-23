@@ -11,7 +11,6 @@ import torch.nn as nn
 from imageio import imsave
 from TTSCGAN.utils import make_grid, save_image
 from tqdm import tqdm
-import cv2
 
 logger = logging.getLogger(__name__)
 

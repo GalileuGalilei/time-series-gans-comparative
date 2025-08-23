@@ -1,4 +1,4 @@
-from data_utils import *
+from data.data_utils import *
 from collections import defaultdict
 from tslearn.metrics import dtw
 from TimeGAN import SyntheticGenerator
@@ -303,8 +303,9 @@ def main():
     plot_PCA_TSE(real_dataset.X_test, fake_dataset)
     #plot_class_PCA_TSE(real_dataset.X_test_set, fake_dataset, real_dataset.Y_test_set, real_dataset.Y_test_set)
 
-    plot_samples(real_dataset.X_test[20:40], real_dataset.features_names, None, offset=0, path="images/real_samples.pdf", title="")
+    plot_samples(real_dataset.X_test[20:70], real_dataset.features_names, None, offset=0, path="images/real_samples.pdf", title="")
     plot_samples(fake_dataset, real_dataset.features_names, None, offset=0, path="images/synthetic_samples.pdf", title="Dados sintéticos gerados")
+    print("Plot de amostras geradas e reais concluído.")
 
     # Calculate Cosine Similarity
     #mean_sim, std_sim = compute_cosine_similarity(real_dataset_shuffled.X_set, fake_dataset.X_set, n_samples=100)
