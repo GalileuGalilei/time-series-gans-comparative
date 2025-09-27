@@ -47,7 +47,7 @@ If you change any libraries, use `conda env export > environment.yml` to update 
 
 ### Evaluation
 - `data_utils.py` has all the necessary code for data generation
-- `metrics.py` and `TSTR.py` scripts have all the experiments and evaluation metrics
+- `metrics.py` and `evaluation.py` scripts have all the experiments and evaluation metrics
 
   📊 Results
 ## Quantitative results (DTW scores and classification accuracy) and qualitative PCA plots can be found in the figures/ directory or reproduced via the evaluation scripts.
