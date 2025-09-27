@@ -26,9 +26,9 @@ command = [
   "--dist-url", "tcp://localhost:4321",
   "--dist-backend", "nccl",
   "--world-size", "1",
-  "--max_epoch", "50",
+  "--max_epoch", "15",
   "--rank", args.rank,
-  #  "--gpu", "0",
+  #"--gpu", "cuda",
   "--dataset", "dapt2020",
   "--bottom_width", "8",
   "--max_iter", "500000",
@@ -56,8 +56,8 @@ command = [
   "--num_eval_imgs", "50000",
   "--init_type", "xavier_uniform",
   "--n_critic", "1",
-  "--val_freq", "20",
-  "--print_freq", "20",
+  "--val_freq", "60",
+  "--print_freq", "60",
   "--grow_steps", "0", "0",
   "--fade_in", "0",
   "--patch_size", "8",
@@ -65,7 +65,8 @@ command = [
   "--ema_warmup", "0.1",
   "--ema", "0.9999",
   "--diff_aug", "translation,cutout,color",
-  "--exp_name", "TTS_APT_CGAN_6_VAR_V"
+  "--exp_name", "TTS_APT_CGAN_6_VAR_V",
+  "--exp_folder", "experiments"
 ]
 
 # Executar o comando

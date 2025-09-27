@@ -2,13 +2,10 @@ import torch
 import torch.nn as nn 
 import torch.nn.functional as F
 from torch import Tensor 
-import math 
 import numpy as np
 
-from torchvision.transforms import Compose, Resize, ToTensor
 from einops import rearrange, reduce, repeat
 from einops.layers.torch import Rearrange, Reduce
-from torchinfo import summary
 
 class Generator(nn.Module):
     def __init__(self, seq_len=150, channels=3, num_classes=9, latent_dim=100, data_embed_dim=10, 
@@ -169,8 +166,8 @@ class ClassificationHead(nn.Sequential):
         self.adv_head = nn.Sequential(
             Reduce('b n e -> b e', reduction='mean'),
             nn.LayerNorm(emb_size),
-            MiniBatch(emb_size, 9, 4),
-            nn.Linear(emb_size + 9 + 1, adv_classes) #mini batch(9) + std(1)
+            MiniBatch(emb_size, 15, 4),
+            nn.Linear(emb_size + 15 + 1, adv_classes) #mini batch(9) + std(1)
         )
         self.cls_head = nn.Sequential(
             Reduce('b n e -> b e', reduction='mean'),

@@ -24,8 +24,6 @@ from .adamw import AdamW
 import random 
 import matplotlib.pyplot as plt
 import io
-import PIL.Image
-from torchvision.transforms import ToTensor
 
 
 def main():
@@ -40,9 +38,10 @@ def main():
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
 
-    if args.gpu is not None:
-        warnings.warn('You have chosen a specific GPU. This will completely '
-                      'disable data parallelism.')
+    #if args.gpu is not None:
+     #   warnings.warn('You have chosen a specific GPU. This will completely '
+      #                'disable data parallelism.')
+    args.gpu = "cuda"
 
     if args.dist_url == "env://" and args.world_size == -1:
         args.world_size = int(os.environ["WORLD_SIZE"])
@@ -59,7 +58,7 @@ def main():
         mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
     else:
         # Simply call main_worker function
-        main_worker(args.gpu, ngpus_per_node, args)
+        main_worker("cuda", ngpus_per_node, args)
         
 def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
@@ -93,26 +92,26 @@ def main_worker(gpu, ngpus_per_node, args):
             nn.init.constant_(m.bias.data, 0.0)
 
     #load dataset
-    seq_len = 30
+    seq_len = 64
     features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
-
     train_set = DAPT2020("data/dapt2020.csv", "Stage", seq_len, filter_features=features_to_train, is_train=True, attack_only=False)
     train_set.shuffle()
+    train_set.balance_classes()  # create balanced class indices for sampling
     train_set.expand()  # expand dims to fit the TTS-CGAN input shape (batch, channels, 1, seq_length)
 
-    # order by class
+    # order by class. Not working right now
     #train_set.order_by_class()
 
-    train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
+    train_loader = data.DataLoader(train_set, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, drop_last=True)
     num_channels = train_set.X_set.shape[-1]
     num_classes = max(np.unique(train_set.Y_set)) + 1
 
     # import network
-    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=64, 
-                        label_embed_dim=32, depth=3, num_heads=4,
+    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=32, 
+                        label_embed_dim=16, depth=3, num_heads=2,
                         forward_drop_rate=0.0, attn_drop_rate=0.0)
     
-    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=64, label_emb_size=32, seq_length=seq_len, depth=4, n_classes=num_classes)
+    dis_net = Discriminator(in_channels=num_channels, patch_size=2, data_emb_size=64, label_emb_size=16, seq_length=seq_len, depth=3, n_classes=num_classes)
     
     #notes: 64x64 depth 4, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 71 synthetic 86 semi-synthetic
     #notes: 128x160 depth 3, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 71 synthetic 86.1 semi-synthetic
@@ -126,7 +125,7 @@ def main_worker(gpu, ngpus_per_node, args):
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
         # DistributedDataParallel will use all available devices.
-        if args.gpu is not None:
+        if False:
             torch.cuda.set_device(args.gpu)
             gen_net.apply(weights_init)
             dis_net.apply(weights_init)
@@ -149,10 +148,6 @@ def main_worker(gpu, ngpus_per_node, args):
             # available GPUs if device_ids are not set
             gen_net = torch.nn.parallel.DistributedDataParallel(gen_net)
             dis_net = torch.nn.parallel.DistributedDataParallel(dis_net)
-    elif args.gpu is not None:
-        torch.cuda.set_device(args.gpu)
-        gen_net.cuda(args.gpu)
-        dis_net.cuda(args.gpu)
     else:
         gen_net = torch.nn.DataParallel(gen_net).cuda()
         dis_net = torch.nn.DataParallel(dis_net).cuda()
@@ -218,7 +213,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # create new log dir
         assert args.exp_name
         if args.rank == 0:
-            args.path_helper = set_log_dir('logs', args.exp_name)
+            args.path_helper = set_log_dir(args.exp_folder, args.exp_name)
             logger = create_logger(args.path_helper['log_path'])
             writer = SummaryWriter(args.path_helper['log_path'])
     

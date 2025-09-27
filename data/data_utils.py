@@ -14,20 +14,19 @@ class SynthDataset(Dataset):
     the (X_train_set, Y_train_set, X_test_set, Y_test_set) attributes and also the (X_set, Y_set) attributes that represents the whole dataset
     """
     def __init__(self, X_train, Y_train):
-        self.X_train_set = X_train
-        self.Y_train_set = Y_train
+        self.X_train = X_train
+        self.Y_train = Y_train
 
     def __len__(self):
-        return len(self.X_train_set)
+        return len(self.X_train)
 
     def __getitem__(self, idx):
-        return self.X_train_set[idx], self.Y_train_set[idx]
+        return self.X_train[idx], self.Y_train[idx]
 
-def load_original_dataset(is_train, attack_only=False, shuffle=True):
+def load_original_dataset(seq_len,is_train, attack_only=False, shuffle=True):
     features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
     label_column = 'Stage'
     filename = "data/dapt2020.csv"
-    seq_len = 30
     
     data_set = DAPT2020(filename, label_column, seq_len, filter_features=features_to_train, is_train=is_train, attack_only=attack_only)
     if shuffle:
@@ -99,58 +98,10 @@ def generate_syntetic_dataset(orignal_dataset : DAPT2020, generator : IGenerator
     if shuffle:
         # Embaralhar os dados
         np.random.seed(22)
-        indices = np.arange(len(syntetic_dataset.X_train_set))
+        indices = np.arange(len(syntetic_dataset.X_train))
         np.random.shuffle(indices)
-        syntetic_dataset.X_train_set = syntetic_dataset.X_train_set[indices]
-        syntetic_dataset.Y_train_set = syntetic_dataset.Y_train_set[indices]
+        syntetic_dataset.X_train = syntetic_dataset.X_train[indices]
+        syntetic_dataset.Y_train = syntetic_dataset.Y_train[indices]
 
     print("Generating synthetic dataset")
     return DataLoader(syntetic_dataset, batch_size=64)
-
-''' código de produção, deveria ser removido depois de testar
-def fine_tuning(model):
-    """
-    target_ratios: dicionário com {classe: proporção desejada no total final}
-    """
-    grow_steps = [0.1, 0.15, 0.25, 0.3, 0.4]
-    target_ratios = []
-    i = 0
-    while i < len(grow_steps)**4:
-        target_ratios.append(
-            {0: 0, 1: grow_steps[i%len(grow_steps)],
-             2: grow_steps[(i//len(grow_steps))%len(grow_steps)],
-             3: grow_steps[(i//(len(grow_steps)**2))%len(grow_steps)],
-             4: grow_steps[(i//(len(grow_steps)**3))%len(grow_steps)]})
-        i += 1
-
-    print(f"Testando um total de target_ratios: {len(target_ratios)}")
-
-
-    model_path = "TTSCGAN/logs/TTS_APT_CGAN_OITO_VAR_IMPR7/Model/checkpoint"
-    trainable_features = ['SYN Flag Count', 'Src Port', 'Fwd Packets/s', 'Flow Packets/s', 'Bwd Packets/s', 'ACK Flag Count', 'FIN Flag Count', 'Flow Bytes/s', 'Timestamp']
-    data_path = "data/output.csv"
-    seq_len = 30
-    scores = []
-
-    best_target_ratio = {}
-    best_score = 0
-
-    test_set = load_original_dataset(is_train=False, attack_only=False)
-    train_set = load_and_preprocess_data(data_path, list(trainable_features), "Stage", seq_len, is_train=True)
-    generator = TTSCGANGenerator(seq_len=seq_len, num_channels=len(trainable_features)-1, num_classes=5, model_path=model_path)
-
-    for target_ratio in target_ratios:
-        print(f"Target ratio: {target_ratio}")
-        train_set_increased = generate_semi_syntetic_dataset(train_set, generator, target_ratio)
-
-        # roda o modelo
-        trained_model = train_cpu_model(train_set_increased.dataset.X_train_set, train_set_increased.dataset.Y_train_set, model.copy())
-        #retorna f1 score
-        accuracy_score, precision, recall, f1 = evaluate_cpu_model(test_set.dataset.X_test_set, test_set.dataset.Y_test_set, trained_model)
-        scores.append(f1)
-
-        if f1 > best_score:
-            best_score = f1
-            best_target_ratio = target_ratio
-    print(f"Melhor target ratio: {best_target_ratio} com f1 score: {best_score}")
-'''

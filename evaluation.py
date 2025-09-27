@@ -1,3 +1,4 @@
+from datetime import datetime
 from data.data_utils import *
 from classifiers.Classifiers import *
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
@@ -107,7 +108,7 @@ def train_torch_model(X_train_set, Y_train_set, model):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)  # Move o modelo para GPU (caso necessário)
 
-    epochs = 5
+    epochs = 3
     batch_size = 64
 
     # Inicializa a função de perda e o otimizador
@@ -223,7 +224,7 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
         os.makedirs(save_path)
 
     #todo: corrigir essa nomeclatura
-    classes_by_id = original_dataset.dataset.classes
+    classes_by_id = original_dataset.dataset.classes_names
     overall_results = []
 
     for gen in generators:
@@ -236,8 +237,8 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
 
             # sintético
             data_synt = generate_syntetic_dataset(original_dataset.dataset, gen)
-            trained_model = train_function(data_synt.dataset.X_train_set, data_synt.dataset.Y_train_set, clf.copy())
-            report = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model, classes_by_id, data_type='synthetic')
+            trained_model = train_function(data_synt.dataset.X_train, data_synt.dataset.Y_train, clf.copy())
+            report = eval_function(original_dataset.dataset.X_test, original_dataset.dataset.Y_test, trained_model, classes_by_id, data_type='synthetic')
             results.append(report)
 
             print(report)
@@ -245,16 +246,16 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
             # semi-sintético
             # {0: 0, 1: 0.2, 2: 0.2, 3: 0.25, 4: 0.35} => 86.6
             # {0: 0, 1: 0.15, 2: 0.15, 3: 0.3, 4: 0.4} => 86.4
-            data_semi_synt = generate_semi_syntetic_dataset(original_dataset.dataset, gen, {0: 0, 1: 0.2, 2: 0.2, 3: 0.3, 4: 0.3})
-            trained_model = train_function(data_semi_synt.dataset.X_train_set, data_semi_synt.dataset.Y_train_set, clf.copy())
-            report = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model, classes_by_id, data_type='semi-synthetic')
+            data_semi_synt = generate_semi_syntetic_dataset(original_dataset.dataset, gen, {0: 0, 1: 0.35, 2: 0.0, 3: 0.2, 4: 0.1})
+            trained_model = train_function(data_semi_synt.dataset.X_train, data_semi_synt.dataset.Y_train, clf.copy())
+            report = eval_function(original_dataset.dataset.X_test, original_dataset.dataset.Y_test, trained_model, classes_by_id, data_type='semi-synthetic')
             results.append(report)
 
             print(report)
 
             # originais
-            trained_model = train_function(original_dataset.dataset.X_train_set, original_dataset.dataset.Y_train_set, clf.copy())
-            report = eval_function(original_dataset.dataset.X_test_set, original_dataset.dataset.Y_test_set, trained_model, classes_by_id, data_type='original')
+            trained_model = train_function(original_dataset.dataset.X_train, original_dataset.dataset.Y_train, clf.copy())
+            report = eval_function(original_dataset.dataset.X_test, original_dataset.dataset.Y_test, trained_model, classes_by_id, data_type='original')
             results.append(report)
 
             print(report)
@@ -266,42 +267,78 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
             for report in results:
                 f.write(str(report) + "\n")
 
-    with open(os.path.join(save_path, "overall_results.csv"), "w") as f:
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    with open(os.path.join(save_path,current_time + "_overall_results.csv"), "w") as f:
         f.write(f"GAN,Classifier,Data Type,Precision,Recall,F1 Score,Support,False Positives,False Negatives" + "\n")
         for gen_name, reports in overall_results:
             for report in reports:
                 precision, recall, f1 =  report.calculate_weighted_metrics()
                 f.write(f"{gen_name},{report.classifier},{report.data_type},{precision:.4f},{recall:.4f},{f1:.4f},-,-,-" + "\n")
 
-def main():
+def find_best_synthetic_data_balance(model):
+    """
+    target_ratios: dicionário com {classe: proporção desejada no total final}
+    """
+    grow_steps = [0.1, 0.15, 0.25, 0.3, 0.4]
+    target_ratios = []
+    i = 0
+    while i < len(grow_steps)**4:
+        target_ratios.append(
+            {0: 0, 1: grow_steps[i%len(grow_steps)],
+             2: grow_steps[(i//len(grow_steps))%len(grow_steps)],
+             3: grow_steps[(i//(len(grow_steps)**2))%len(grow_steps)],
+             4: grow_steps[(i//(len(grow_steps)**3))%len(grow_steps)]})
+        i += 1
 
-    tts_cgan_model_path = "logs/TTS_APT_CGAN_6_VAR_V5_h2g_h4d_128_160/Model/checkpoint"
+    print(f"Testando um total de target_ratios: {len(target_ratios)}")
+
+
+    model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_09_07_20_11_28/Model/checkpoint"
+    features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
+    seq_len = 30
+    scores = []
+
+    best_target_ratio = {}
+    best_score = 0
+
+    test_set = load_original_dataset(is_train=False, attack_only=False)
+    train_set = load_original_dataset(is_train=True, attack_only=False).dataset
+    generator = TTSCGAN.SyntheticGenerator(seq_len=seq_len, num_channels=len(features_to_train), num_classes=5, model_path=model_path)
+
+    for target_ratio in target_ratios:
+        print(f"Target ratio: {target_ratio}")
+        train_set_increased = generate_semi_syntetic_dataset(train_set, generator, target_ratio)
+
+        # roda o modelo
+        trained_model = train_cpu_model(train_set_increased.dataset.X_train, train_set_increased.dataset.Y_train, model.copy())
+        #retorna f1 score
+        precision, recall, f1 = evaluate_cpu_model(test_set.dataset.X_test, test_set.dataset.Y_test, trained_model).calculate_weighted_metrics()
+        scores.append(f1)
+
+        if f1 > best_score:
+            best_score = f1
+            best_target_ratio = target_ratio
+    print(f"Melhor target ratio: {best_target_ratio} com f1 score: {best_score}")
+
+def main():
+    seq_len = 64
+    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_09_26_15_50_47/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
     time_gan_model_path = "output/TimeGAN/dapt_v5/train/weights"
 
     # Carrega os datasets originais
-    original_dataset = load_original_dataset(is_train=True, attack_only=False, shuffle=True)
-
-    #single classifier
-    model =  RandomForestClassifierModel(50)
-    trained_model = train_cpu_model(original_dataset.dataset.X_train, original_dataset.dataset.Y_train, model.copy())
-    report = evaluate_cpu_model(original_dataset.dataset.X_test, original_dataset.dataset.Y_test, trained_model, original_dataset.dataset.classes_names, data_type='original')
-
-    print(report)
-    return
-
-
+    original_dataset = load_original_dataset(seq_len, is_train=True, attack_only=False, shuffle=True)
     
     # Cria os geradores
     generators = [#RCGAN.SyntheticGenerator(model_path=rcgan_model_path, epoch=89),
-                  TTSCGAN.SyntheticGenerator(seq_len=30, num_channels=6, num_classes=5, model_path=tts_cgan_model_path)]
+                  TTSCGAN.SyntheticGenerator(seq_len=seq_len, num_channels=10, num_classes=5, model_path=tts_cgan_model_path)]
                   #TimeGAN.SyntheticGenerator(model_path=time_gan_model_path, data=original_dataset.dataset)]
 
     # Cria os classificadores
     classifiers = [RandomForestClassifierModel(50),
-                   SVMClassifier(),
-                   LSTMClassifier(6, 30, 64, 5),
-                   TransformerClassifier(6, 30, 5)]
+                   #SVMClassifier(), --lento demais, eviotar para desenvolvimento
+                   LSTMClassifier(10, seq_len, 64, 5),
+                   TransformerClassifier(10, seq_len, 5)]
 
     # Roda os experimentos
     experiments_battery(generators, classifiers, original_dataset, save_path="experiments/results")

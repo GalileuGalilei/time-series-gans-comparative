@@ -293,6 +293,9 @@ def parse_args():
                         help='discriminator mlp ratio')
     parser.add_argument('--show', action='store_true',
                     help='show')
+    
+    parser.add_argument('--exp_folder', type=str, default="experiments",
+                        help='the folder to save the experiments')
 
     opt = parser.parse_args()
 

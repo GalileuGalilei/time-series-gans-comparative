@@ -45,7 +45,7 @@ def train():
     # LOAD DATA
     features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
     label_column = 'Stage'
-    seq_len = 30 
+    seq_len = 64
     filename = "data/dapt2020.csv"
     
     #ja embaralhado por padrao

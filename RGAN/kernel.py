@@ -8,7 +8,7 @@ import scipy as sp
 #from sklearn.metrics.pairwise import my_rbf
 import matplotlib.pyplot as plt
 import re
-from fastdtw import fastdtw
+#from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 import pdb
 
@@ -42,7 +42,7 @@ def my_rbf(x, y=None, gamma=1.0/(2.1)**2, withnorm=False):
         yn = y
     dist = np.linalg.norm(xn - yn)
     return np.exp(-gamma*(dist**2))
-
+'''
 def compare_metrics(X, num=10):
     """
     """
@@ -72,7 +72,7 @@ def compare_metrics(X, num=10):
     plt.savefig("dtw.png")
     plt.clf()
     plt.close()
-    return True
+    return True'''
 
 
 

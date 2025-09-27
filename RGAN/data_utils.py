@@ -70,8 +70,8 @@ def get_samples_and_labels(settings):
     """
 
     #load dataset
-    seq_len = 30
-    features_to_train = ['Bwd Packets/s', 'Flow Packets/s', 'Src Port', 'Protocol', 'FIN Flag Count', 'SYN Flag Count', 'Timestamp']
+    seq_len = 64
+    features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
     data_set = DAPT2020("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True, expand=False, one_hot=True)
     # order by class
     data_set.order_by_class()

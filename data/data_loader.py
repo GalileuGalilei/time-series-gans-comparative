@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
 
 from torch.utils.data import Dataset
+from torch.utils.data import WeightedRandomSampler
 
 # Ignore warnings
 import warnings
@@ -17,12 +18,15 @@ class DAPT2020(Dataset):
         self.is_train = is_train
         self.seq_len = seq_len
         self.attack_only = attack_only
+        self.train_weighted_indices = None
+        self.test_weighted_indices = None
 
         # Load data
         data_train = pd.read_csv(filename)
 
         # Filter columns
         if filter_features:
+            filter_features = filter_features + ['Timestamp']
             data_train = data_train[filter_features + [label_column]]
 
         # Sort by timestamp
@@ -78,10 +82,6 @@ class DAPT2020(Dataset):
         self.X_set = data_train.drop(columns=[label_column])
         self.Y_set = data_train[label_column].to_numpy()
 
-        # Standard scaler is not recommended for time series preprocessing, review this in the future!
-        #scaler = StandardScaler()
-        #X_set = scaler.fit_transform(X_set)
-
         # Minmax scaler
         scaler = MinMaxScaler(feature_range=(-1, 1))
         self.X_set = scaler.fit_transform(self.X_set)
@@ -93,10 +93,10 @@ class DAPT2020(Dataset):
         self.X_indices = np.array([np.arange(i,i + seq_len) for i in range(len(self.X_set) - seq_len - 1)])
         self.Y_indices = np.array([i + seq_len for i in range(len(self.Y_set) - seq_len - 1)])
 
-        assert len(self.X_indices) == len(self.Y_indices), "X_set and Y_set must have the same length. Something is wrong."
-
         # Calculate train/test split
         self.train_size = int(len(self.X_indices) * train_test_split)
+        self.train_indices = np.arange(0, self.train_size)
+        self.test_indices = np.arange(self.train_size, len(self.X_indices))
 
         # Print dataset info
         uniques = np.unique(self.Y_set)
@@ -113,14 +113,40 @@ class DAPT2020(Dataset):
             i += 1
         print(f"Train size: {self.train_size}, Test size: {len(self.X_indices) - self.train_size}")
         
-    def shuffle(self, seed=22):
+    def shuffle(self, seed=42):
+        '''
+        Shuffle the dataset and re-split into train and test sets.
+        '''
+
+        # basic shuffle
         np.random.seed(seed)
-        
-        indices = np.arange(len(self.Y_indices))
+        indices = np.arange(len(self.X_indices))
         np.random.shuffle(indices)
 
-        self.X_indices = self.X_indices[indices]
-        self.Y_indices = self.Y_indices[indices]
+        self.train_indices = indices[:self.train_size]
+        self.test_indices = indices[self.train_size:]
+        
+    def balance_classes(self, balance_test_set=False):
+        '''
+            Create weighted random samplers for balanced class sampling during training and testing.
+        '''
+
+        sample_weights = self.class_weights
+        sample_weights = sample_weights[self.Y_set[self.train_indices]]
+
+        train_weighted_sampler = WeightedRandomSampler(sample_weights, num_samples=len(self.train_indices), replacement=True)
+        self.train_weighted_indices = list(train_weighted_sampler)
+
+        if not balance_test_set:
+            return
+
+        sample_counts = np.bincount(self.Y_set[self.test_indices], minlength=len(self.classes_names))
+        sample_weights = np.sqrt(1. / sample_counts)
+        sample_weights = np.sqrt(sample_weights)
+        sample_weights = sample_weights[self.Y_set[self.test_indices]]
+
+        test_weighted_sampler = WeightedRandomSampler(sample_weights, num_samples=len(self.test_indices))
+        self.test_weighted_indices = list(test_weighted_sampler)
 
     def expand(self): #todo: with indices do not work, fix later
         # expand dims to fit the TTS-CGAN input shape (channels, 1, seq_length)
@@ -129,43 +155,69 @@ class DAPT2020(Dataset):
     def one_hot_encode(self):
         self.Y_set = np.eye(len(self.classes_names))[self.Y_set]
 
-    def order_by_class(self, batch_size):
+    #nem ideia se isso funciona, provavelmente nao
+    def order_by_class(self, batch_size): 
         # Order the dataset by class, so that each batch contains samples from only one class
-        indices = np.arange(len(self.Y_indices))
+        indices = np.arange(len(self.X_train_indices))
         ordered_indices = []
         for i in range(len(self.classes_names)):
-            class_indices = indices[self.Y_set[self.Y_indices] == i]
+            class_indices = indices[self.Y_set[self.X_train_indices] == i]
             np.random.shuffle(class_indices)
             ordered_indices.extend(class_indices[:batch_size])
-        self.X_indices = self.X_indices[ordered_indices]
-        self.Y_indices = self.Y_indices[ordered_indices]
+        self.X_train_indices = self.X_train_indices[ordered_indices]
+        self.Y_train_indices = self.Y_train_indices[ordered_indices]
 
     @property
     def X_test(self):
-        return self.X_set[self.X_indices[self.train_size:]]
+        if self.test_weighted_indices:
+            return self.X_set[self.X_indices[self.test_indices[self.test_weighted_indices]]]
+        else: 
+            return self.X_set[self.X_indices[self.test_indices]]
     
     @property
     def Y_test(self):
-        return self.Y_set[self.Y_indices[self.train_size:]]
+        if self.test_weighted_indices:
+            return self.Y_set[self.Y_indices[self.test_indices[self.test_weighted_indices]]]
+        else:
+            return self.Y_set[self.Y_indices[self.test_indices]]
     
     @property
     def X_train(self):
-        return self.X_set[self.X_indices[:self.train_size]]
-    
+        if self.train_weighted_indices:
+            return self.X_set[self.X_indices[self.train_indices[self.train_weighted_indices]]]
+        else:
+            return self.X_set[self.X_indices[self.train_indices]]
+
     @property
     def Y_train(self):
-        return self.Y_set[self.Y_indices[:self.train_size]]
+        if self.train_weighted_indices:
+            return self.Y_set[self.Y_indices[self.train_indices[self.train_weighted_indices]]]
+        else:
+            return self.Y_set[self.Y_indices[self.train_indices]]
+        
+    @property
+    def class_weights(self):
+        sample_counts = np.bincount(self.Y_set[self.train_indices], minlength=len(self.classes_names))
+        class_weights = np.sqrt(1. / sample_counts)
+        #class_weights = np.sqrt(class_weights)  # Aplicar raiz quadrada
+        return class_weights
 
     def __len__(self):
         if self.is_train:
-            return self.train_size
+            return len(self.train_indices)
         else:
-            return len(self.X_indices) - self.train_size
-    
+            return len(self.test_indices)
+
     def __getitem__(self, idx):
         if self.is_train:
-            if idx >= self.train_size:
-                raise IndexError("Index out of range for training set.")
-            return self.X_set[self.X_indices[idx]], self.Y_set[self.Y_indices[idx]]
+            if self.train_weighted_indices:
+                idx = self.train_weighted_indices[idx]
+            actual_idx = self.train_indices[idx]
         else:
-            return self.X_set[self.X_indices[idx + self.train_size]], self.Y_set[self.Y_indices[idx + self.train_size]]
+            if self.test_weighted_indices:
+                idx = self.test_weighted_indices[idx]
+            actual_idx = self.test_indices[idx]
+
+        x = self.X_set[self.X_indices[actual_idx]]
+        y = self.Y_set[self.Y_indices[actual_idx]]
+        return x, y

@@ -1,11 +1,11 @@
-import pickle
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import BaggingClassifier
+from skorch import NeuralNetClassifier
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from hmmlearn import hmm
 
 class IClassifier:
     def is_torch_model(self):
@@ -83,9 +83,10 @@ class LSTMClassifier(nn.Module, IClassifier):
         self.n_classes = n_classes
 
     def forward(self, x):
-        # x: (batch_size, n_channels, 1, seq_length)
-        #x = x.squeeze(2)  # → (batch_size, n_channels, seq_length)
-        #x = x.permute(0, 2, 1)  # → (batch_size, seq_length, n_channels)
+        if x.ndim == 2:
+            x = x.view(-1, self.seq_length, self.n_channels)
+            # x shape: (batch, seq_length, n_channels)
+
         lstm_out, _ = self.lstm(x)
         last_hidden = lstm_out[:, -1, :]
         output = self.fc(last_hidden)
@@ -104,7 +105,10 @@ class PositionalEncoding(nn.Module):
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-np.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
+        if d_model % 2 == 0:
+            pe[:, 1::2] = torch.cos(position * div_term)
+        else:
+            pe[:, 1::2] = torch.cos(position * div_term[:(d_model // 2)])
         pe = pe.unsqueeze(0)  # (1, max_len, d_model)
         self.register_buffer('pe', pe)
 
@@ -120,12 +124,13 @@ class TransformerClassifier(nn.Module, IClassifier):
         self.seq_length = seq_length
         self.n_classes = n_classes
         self.pos_encoder = PositionalEncoding(d_model=n_channels, max_len=seq_length)
-        self.transformer = nn.TransformerEncoderLayer(d_model=n_channels, nhead=3, dim_feedforward=64, dropout=0.3)
+        #todo: colocar o nhead como parâmetro
+        encoder_layer = nn.TransformerEncoderLayer(d_model=n_channels, nhead=2, dim_feedforward=32, dropout=0.1)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=1)
         self.fc = nn.Linear(n_channels * seq_length, n_classes)
 
     def forward(self, x):
-        #x = x.squeeze(2)  # Remove the singleton dimension
-        #x = x.permute(0, 2, 1)  # (batch, seq_length, n_channels)
+        #x = (batch, seq_length, n_channels)
         x = self.pos_encoder(x)
         x = x.permute(1, 0, 2)  # (seq_length, batch, n_channels) for transformer
         x = self.transformer(x)
@@ -139,5 +144,3 @@ class TransformerClassifier(nn.Module, IClassifier):
     
     def get_name(self):
         return "TransformerClassifier"
-
-    

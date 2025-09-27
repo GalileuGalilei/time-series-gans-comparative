@@ -35,6 +35,8 @@ Since this project has many libraries, please use [Conda](https://www.anaconda.c
 - conda env create -f environment.yml
 - conda activate time-series-gans
 
+If you change any libraries, use `conda env export > environment.yml` to update the environment.
+
 ### 2. Download DAPT2020 dataset
 - download the csv files at: https://www.kaggle.com/datasets/sowmyamyneni/dapt2020
 - use `python load_csv_data --data_path "path/to/csv/folder"` to combine the csv files into a single csv. The new file will be saved in the `data/` folder by default.

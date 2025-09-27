@@ -1,6 +1,7 @@
 from data.data_utils import *
 from collections import defaultdict
-from tslearn.metrics import dtw
+from classifiers.Classifiers import RandomForestClassifierModel, SVMClassifier, LSTMClassifier, TransformerClassifier
+from evaluation import *
 from TimeGAN import SyntheticGenerator
 
 import numpy as np
@@ -20,7 +21,7 @@ def plot_samples(data, features_names, labels=None, offset=0, path=None, title="
 
     for i in range(2):
         for j in range(2):
-            sample_idx = i * 5 + j + offset
+            sample_idx = i * 10 + j + offset
             if sample_idx >= num_samples:
                 break  # Evita acessar índices fora do alcance de 'data'
             for k in range(1, num_classes):
@@ -88,7 +89,7 @@ def plot_PCA_TSE(series1, series2, method='both'):
         if m == 'PCA':
             reducer = PCA(n_components=2)
         elif m == 'T-SNE':
-            reducer = TSNE(n_components=2, perplexity=30, random_state=42)
+            reducer = TSNE(n_components=2, perplexity=10, random_state=42)
         else:
             raise ValueError("Método inválido. Escolha 'pca', 'tsne' ou 'both'.")
 
@@ -160,7 +161,7 @@ def plot_class_PCA_TSE(series1, series2, labels1, labels2, save_path="images/by_
         axes = [ax]
 
     for ax, m in zip(axes, methods):
-        reducer = PCA(n_components=2) if m == 'PCA' else TSNE(n_components=2, perplexity=30, random_state=42)
+        reducer = PCA(n_components=2) if m == 'PCA' else TSNE(n_components=2, perplexity=10, random_state=42)
         reduced = reducer.fit_transform(data)
 
         for label in np.unique(composite_labels):
@@ -277,42 +278,53 @@ def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distr
 
 
 def main():
-    tts_cgan_model_path = "logs/TTS_APT_CGAN_6_VAR_V_2025_08_12_16_20_33/Model/checkpoint"
-    rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    time_gan_model_path = "output/TimeGAN/stock/train/weights"
-    
-    #generator = TimeGAN.SyntheticGenerator(30, 10, 5, tts_cgan_model_path)
+    real_dataset = load_original_dataset(64, is_train=True, attack_only=False, shuffle=True).dataset
+    real_dataset.balance_classes(balance_test_set=True)
+
+    ##### GENERATORS #####
+    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_09_26_15_50_47/Model/checkpoint"
+    #rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
+    #time_gan_model_path = "output/TimeGAN/stock/train/weights"
+
     #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
-    real_dataset = load_original_dataset(is_train=True, attack_only=False, shuffle=True).dataset
-    generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
+    #generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
+    generator = TTSCGAN.SyntheticGenerator(64, 10, 5, tts_cgan_model_path)
+
     fake_dataset = generator.generate(real_dataset.Y_test)
+
+    #####################
     
+    ####### DTW #########
     #real_dataset_shuffled = load_and_preprocess_data(data_path, list(features_names), "Stage", seq_len, is_train=True, shuffle=True, seed=22)
     #real_dataset_shuffled = shuffle_within_classes(real_dataset_shuffled)
-
-    #### !!!!!!!!!!!!!!!!!! ####
-    # o dataset original comparado com ele mesmo não possui similariedade igual à 1.0 como normalmente se espera,
-    # isso se deve provavelmente à grande variação entre os dados.
-    # o dataset sintético possui similaridade um pouco maior, pois é uma generalização
-    #então na média ele é mais próximo do real, por isso ultrapassa um pouco o original.
-    #### !!!!!!!!!!!!!!!!!! ####
 
     #dynamic time warping
     #_ = compute_dtw_by_class(real_dataset.X_test, fake_dataset, real_dataset.Y_test, real_dataset.Y_test)
 
+    #####################
+
+    #### CLASSIFIERS ####
+
+    #model = LSTMClassifier(n_channels=10, seq_length=30, hidden_dim=64, n_classes=5)
+   # trained_model = train_torch_model(real_dataset.X_train, real_dataset.Y_train, model)
+    #_, _, f1 = evaluate_torch_model(real_dataset.X_test, real_dataset.Y_test, trained_model).calculate_weighted_metrics()
+
+    #model = TransformerClassifier(n_channels=10, seq_length=30, n_classes=5)
+    #trained_model = train_torch_model(real_dataset.X_train, real_dataset.Y_train, model)
+    #_, _, f1 = evaluate_torch_model(real_dataset.X_test, real_dataset.Y_test, trained_model).calculate_weighted_metrics()
+    #print(f"F1 Score: {f1}")
+
+    #####################
+
+
+    ####### PLOTS #######
+
     plot_PCA_TSE(real_dataset.X_test, fake_dataset)
-    #plot_class_PCA_TSE(real_dataset.X_test_set, fake_dataset, real_dataset.Y_test_set, real_dataset.Y_test_set)
+    plot_samples(real_dataset.X_test[50:100], real_dataset.features_names, offset=0, path="images/real_samples.pdf", title="Amostras Reais")
+    plot_samples(fake_dataset[50:100], real_dataset.features_names, offset=0, path="images/fake_samples.pdf", title="Amostras Sintéticas (TTS-CGAN)")
+    #plot_class_distribution(real_dataset.Y_set, Y_set, class_names=["Benign", "exfiltration", "establish foothold", "lateral movement", "reconnaissance"])
 
-    plot_samples(real_dataset.X_test[20:70], real_dataset.features_names, None, offset=0, path="images/real_samples.pdf", title="")
-    plot_samples(fake_dataset, real_dataset.features_names, None, offset=0, path="images/synthetic_samples.pdf", title="Dados sintéticos gerados")
-    print("Plot de amostras geradas e reais concluído.")
-
-    # Calculate Cosine Similarity
-    #mean_sim, std_sim = compute_cosine_similarity(real_dataset_shuffled.X_set, fake_dataset.X_set, n_samples=100)
-    #print(f"Mean Cosine Similarity: {mean_sim}")
-    #print(f"Standard Deviation of Cosine Similarity: {std_sim}")
-
-    #plot_class_distribution(real_dataset.Y_set, fake_dataset.dataset.Y_set, class_names=["Benign", "exfiltration", "establish foothold", "lateral movement", "reconnaissance"])
+    #####################
 
 
 
