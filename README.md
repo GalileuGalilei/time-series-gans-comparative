@@ -32,7 +32,6 @@ todo
 ### 1. Requirements
 Since this project has many libraries, please use [Conda](https://www.anaconda.com) to install all the necessary dependencies:
 - git clone https://github.com/GalileuGalilei/time-series-gans-comparative
-- conda env create -f environment.yml
 - conda activate time-series-gans
 
 If you change any libraries, use `conda env export > environment.yml` to update the environment.
