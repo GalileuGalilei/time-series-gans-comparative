@@ -92,7 +92,7 @@ def main_worker(gpu, ngpus_per_node, args):
             nn.init.constant_(m.bias.data, 0.0)
 
     #load dataset
-    seq_len = 64
+    seq_len = 128
     features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
     train_set = DAPT2020("data/dapt2020.csv", "Stage", seq_len, filter_features=features_to_train, is_train=True, attack_only=False)
     train_set.shuffle()
@@ -108,10 +108,10 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # import network
     gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=32, 
-                        label_embed_dim=16, depth=3, num_heads=2,
+                        label_embed_dim=16, depth=3, num_heads=4,
                         forward_drop_rate=0.0, attn_drop_rate=0.0)
     
-    dis_net = Discriminator(in_channels=num_channels, patch_size=2, data_emb_size=64, label_emb_size=16, seq_length=seq_len, depth=3, n_classes=num_classes)
+    dis_net = Discriminator(in_channels=num_channels, patch_size=1, data_emb_size=64, label_emb_size=16, seq_length=seq_len, depth=4, n_classes=num_classes)
     
     #notes: 64x64 depth 4, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 71 synthetic 86 semi-synthetic
     #notes: 128x160 depth 3, dropout 0.0, attn dropout 0.0 => melhor desempenho até agora: 71 synthetic 86.1 semi-synthetic

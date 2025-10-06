@@ -26,7 +26,7 @@ command = [
   "--dist-url", "tcp://localhost:4321",
   "--dist-backend", "nccl",
   "--world-size", "1",
-  "--max_epoch", "15",
+  "--max_epoch", "4",
   "--rank", args.rank,
   #"--gpu", "cuda",
   "--dataset", "dapt2020",
