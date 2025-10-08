@@ -382,13 +382,13 @@ def compare_feature_entropy(real_data, fake_data, n_bins=50, folder_path='experi
 def main():
     ##### Generate data #####
     real_dataset = load_original_dataset(128, is_train=True, attack_only=False, shuffle=True).dataset
-    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_06_11_27_36/Model/checkpoint"
+    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_06_17_56_48/Model/checkpoint"
     #rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    #time_gan_model_path = "output/TimeGAN/stock/train/weights"
+    time_gan_model_path = "output/TimeGAN/stock/train/weights"
 
     #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
-    #generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
-    generator = TTSCGAN.SyntheticGenerator(128, 10, 5, tts_cgan_model_path)
+    generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
+    #generator = TTSCGAN.SyntheticGenerator(128, 10, 5, tts_cgan_model_path)
 
     fake_dataset = generator.generate(real_dataset.Y_test)
     
@@ -406,8 +406,8 @@ def main():
     compare_feature_entropy(real_dataset.X_test, fake_dataset)
 
     ####### PLOTS #######
-    plot_samples(real_dataset.X_test[50:100], real_dataset.features_names, offset=0, path="images/real_samples.pdf", title="Amostras Reais")
-    plot_samples(fake_dataset[50:100], real_dataset.features_names, offset=0, path="images/fake_samples.pdf", title="Amostras Sintéticas (TTS-CGAN)")
+    #plot_samples(real_dataset.X_test[50:100], real_dataset.features_names, offset=0, path="images/real_samples.pdf", title="Amostras Reais")
+    #plot_samples(fake_dataset[50:100], real_dataset.features_names, offset=0, path="images/fake_samples.pdf", title="Amostras Sintéticas (TTS-CGAN)")
     #plot_class_distribution(real_dataset.Y_set, Y_set, class_names=["Benign", "exfiltration", "establish foothold", "lateral movement", "reconnaissance"])
     #####################
 

@@ -180,8 +180,8 @@ class BaseModel():
 
     for iter in range(self.opt.iteration):
       # Train for one iter
-      #for kk in range(2):
-      self.train_one_iter_d()
+      for kk in range(2):
+        self.train_one_iter_d()
       self.train_one_iter_g()
       self.train_one_iter_er_()
 

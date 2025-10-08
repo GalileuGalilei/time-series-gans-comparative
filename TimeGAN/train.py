@@ -43,14 +43,12 @@ def train():
 
 
     # LOAD DATA
+    seq_len = 128
     features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
-    label_column = 'Stage'
-    seq_len = 64
-    filename = "data/dapt2020.csv"
-    
-    #ja embaralhado por padrao
-    data_set = DAPT2020(filename, label_column, seq_len, filter_features=features_to_train, is_train=True)
-    data_set.shuffle()
+    train_set = DAPT2020("data/dapt2020.csv", "Stage", seq_len, filter_features=features_to_train, is_train=True, attack_only=False)
+    train_set.shuffle()
+    train_set.balance_classes()  # create balanced class indices for sampling
+
     #data_set.order_by_class()  # Reordena os dados para que dados da mesma classe fiquem juntos nos dados de treino
 
     # ARGUMENTS
@@ -59,16 +57,16 @@ def train():
     opt.seq_len = seq_len
     opt.data = "dapt2020"
     opt.iteration = 1000
-    opt.hidden_dim = 150
+    opt.hidden_dim = 32
     opt.num_layer = 3  
     opt.module = "gru" 
-    opt.batch_size = 256
+    opt.batch_size = 64
     opt.z_dim = 10
     opt.label_embed_dim = 10
     opt.num_classes = 5 # Number of unique classes in the training set
 
     # LOAD MODEL
-    model = TimeGAN(opt, data_set.X_train, data_set.Y_train)
+    model = TimeGAN(opt, train_set.X_train, train_set.Y_train)
 
     # TRAIN MODEL
     model.train()

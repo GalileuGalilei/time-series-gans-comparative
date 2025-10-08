@@ -111,7 +111,7 @@ class Generator(nn.Module):
     def __init__(self, opt):
         super(Generator, self).__init__()
         self.rnn = nn.GRU(input_size=opt.z_dim + opt.label_embed_dim, hidden_size=opt.hidden_dim, num_layers=opt.num_layer)
-     #   self.norm = nn.LayerNorm(opt.hidden_dim)
+        self.norm = nn.LayerNorm(opt.hidden_dim)
         self.fc = nn.Linear(opt.hidden_dim, opt.hidden_dim)
         self.label_embedding = nn.Embedding(opt.z_dim, opt.label_embed_dim * opt.seq_len)
         self.sigmoid = nn.Sigmoid()
@@ -131,6 +131,7 @@ class Generator(nn.Module):
         x = torch.cat([input, labels_emb], dim=2)  # (L, N, z_dim + label_embed_dim)
 
         g_outputs, _ = self.rnn(x)
+        g_outputs = self.norm(g_outputs)
         E = self.fc(g_outputs)
         if sigmoid:
             E = self.sigmoid(E)
