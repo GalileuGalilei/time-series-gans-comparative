@@ -403,3 +403,8 @@ android/pytorch_android_torchvision/.cxx
 *.jpg
 *.jpeg
 *.pdf
+
+
+*Zone.Identifier
+
+.venv/

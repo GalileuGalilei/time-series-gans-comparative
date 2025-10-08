@@ -58,11 +58,11 @@ def train():
 
     opt.seq_len = seq_len
     opt.data = "dapt2020"
-    opt.iteration = 1000
-    opt.hidden_dim = 150
+    opt.iteration = 500
+    opt.hidden_dim = 32
     opt.num_layer = 3  
     opt.module = "gru" 
-    opt.batch_size = 256
+    opt.batch_size = 32
     opt.z_dim = 10
     opt.label_embed_dim = 10
     opt.num_classes = 5 # Number of unique classes in the training set

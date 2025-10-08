@@ -8,6 +8,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+from fastdtw import fastdtw as dtw
+from scipy.stats import entropy
+import pandas as pd
+
+
+def save_data_to_csv(data, labels, features_names, filename):
+
+    n_samples, seq_len, n_features = data.shape
+    assert n_features == len(features_names), "Numero de features nao corresponde aos nomes fornecidos."
+
+    data_reshaped = data.reshape(n_samples * seq_len, n_features)
+    labels_repeated = np.repeat(labels, seq_len)
+
+    df = pd.DataFrame(data_reshaped, columns=features_names)
+    df['Label'] = labels_repeated
+
+    df.to_csv(filename, index=False)
+    print(f"Dados salvos em {filename}")
+    
 
 def plot_samples(data, features_names, labels=None, offset=0, path=None, title="Samples"):
     fig, axs = plt.subplots(2, 2, figsize=(10, 5))
@@ -17,26 +36,49 @@ def plot_samples(data, features_names, labels=None, offset=0, path=None, title="
     colors = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
 
     num_samples = data.shape[0]
-    num_classes = len(features_names)
-
+    seq_len = data.shape[1]  
+    num_features = data.shape[2]  
+    
+    print(f"=== DEBUG INFO ===")
+    print(f"Data shape: {data.shape} = (samples={num_samples}, time={seq_len}, features={num_features})")
+    print(f"Features names: {features_names}")
+    
+    # Verifica se todas as features são iguais para uma amostra específica
+    if num_samples > 0:
+        sample_0 = data[0]  # Shape: (time, features)
+        print(f"Sample 0 shape: {sample_0.shape}")
+        for k in range(min(5, num_features)):
+            print(f"Feature {k} ({features_names[k] if k < len(features_names) else 'Unknown'}): {sample_0[:5, k]}...")
+    
     for i in range(2):
         for j in range(2):
-            sample_idx = i * 10 + j + offset
+            sample_idx = i * 2 + j + offset
             if sample_idx >= num_samples:
-                break  # Evita acessar índices fora do alcance de 'data'
-            for k in range(1, num_classes):
-                if k >= len(colors):
-                    break  # Evita acessar índices fora do alcance de 'colors'
-                axs[i, j].plot(data[sample_idx, k, :], color=colors[k], label=features_names[k])
+                break 
+            
+            print(f"\n--- Plotting sample {sample_idx} in subplot ({i},{j}) ---")
+            
+            for k in range(min(num_features, len(colors))):
+                feature_data = data[sample_idx, :, k]  # Shape: (time,)
+                print(f"Feature {k} ({features_names[k] if k < len(features_names) else 'Unknown'}): {feature_data[:5]}... (shape: {feature_data.shape})")
+                axs[i, j].plot(feature_data, color=colors[k], label=features_names[k] if k < len(features_names) else f'Feature {k}')
 
+            axs[i, j].set_title(f'Amostra {sample_idx + 1}')
+            axs[i, j].grid(True, alpha=0.3)
+            axs[i, j].set_xlabel('Tempo')
+            axs[i, j].set_ylabel('Valor')
+            
             # Alteração da cor de fundo com base no rótulo
             if labels is not None:
                 if sample_idx < len(labels):
-                    axs[i, j].set_facecolor('white' if labels[sample_idx] == 0 else 'red')
+                    axs[i, j].set_facecolor('white' if labels[sample_idx] == 0 else 'lightcoral')
 
     # Criação da legenda
-    handles = [plt.Line2D([0], [0], color=colors[k], lw=2) for k in range(1, num_classes) if k < len(colors)]
-    fig.legend(handles, features_names[1:num_classes], loc='upper right', fontsize=12)
+    handles = [plt.Line2D([0], [0], color=colors[k], lw=2) for k in range(min(num_features, len(colors)))]
+    legend_labels = [features_names[k] if k < len(features_names) else f'Feature {k}' for k in range(min(num_features, len(colors)))]
+    fig.legend(handles, legend_labels, loc='upper right', fontsize=12)
+
+    plt.tight_layout()
 
     if path:
         if path.endswith('.pdf'):
@@ -44,7 +86,7 @@ def plot_samples(data, features_names, labels=None, offset=0, path=None, title="
         else:
             plt.savefig(path)
 
-def plot_PCA_TSE(series1, series2, method='both'):
+def plot_PCA_TSE(series1, series2, method='both', folder_path='experiments/metrics'):
     """
     Plota a comparação entre duas séries temporais usando PCA e T-SNE.
 
@@ -56,6 +98,9 @@ def plot_PCA_TSE(series1, series2, method='both'):
     Returns:
         None
     """
+    if os.path.exists(folder_path) is False:
+        os.makedirs(folder_path)
+
     assert series1.shape == series2.shape, "As séries devem ter o mesmo formato."
 
     series1 = series1.reshape(-1, series1.shape[1])
@@ -107,7 +152,8 @@ def plot_PCA_TSE(series1, series2, method='both'):
     plt.tight_layout()
     plt.subplots_adjust(top=0.85)
     # Save the figure as PDF
-    plt.savefig("images/plot_pca_tse.pdf", format='pdf')
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
+    plt.savefig(folder_path + f"/{current_time}_plot_pca_tse.pdf", format='pdf')
     plt.show()
     return fig, axes
 
@@ -180,15 +226,19 @@ def plot_class_PCA_TSE(series1, series2, labels1, labels2, save_path="images/by_
 
 
 
-def compute_dtw_by_class(real_data, fake_data, labels_real, labels_fake):
+def compute_dtw_by_class(real_data, fake_data, labels_real, labels_fake, class_names, folder_path='experiments/metrics'):
     """
-    real_data: np.array de shape (N, C, 1, T)
-    fake_data: np.array de shape (N, C, 1, T)
-    labels_real: array/list com shape (N,) - rótulos das amostras reais
-    labels_fake: array/list com shape (N,) - rótulos das amostras geradas
+    computes the dtw os the fake sequences and compare with the real sequences of the same class. The most similiar
+    is the dtw of the fake sequence with a real sequence of the same class, the better.                        
     """
+    if os.path.exists(folder_path) is False:
+        os.makedirs(folder_path)
+
     n = min(len(real_data), len(fake_data))
-    distances_by_class = defaultdict(list)
+    real_distances_by_class = defaultdict(list)
+    fake_distances_by_class = defaultdict(list)
+
+    real_shuffled_data = shuffle_within_classes(real_data, labels_real, seed=42)
 
     for i in range(n):
         label = labels_real[i]
@@ -197,18 +247,25 @@ def compute_dtw_by_class(real_data, fake_data, labels_real, labels_fake):
 
         s1 = real_data[i].reshape(1, -1)
         s2 = fake_data[i].reshape(1, -1)
-        dist = dtw(s1, s2)
-        distances_by_class[label].append(dist)
+        dist_fake = dtw(s1, s2)[0]
 
-    print("DTW por classe:")
-    for label, dists in distances_by_class.items():
-        mean = np.mean(dists)
-        std = np.std(dists)
-        print(f"Classe {label}: Média = {mean:.4f}, Desvio = {std:.4f}")
+        s2 = real_shuffled_data[i].reshape(1, -1)
+        dist_real = dtw(s1, s2)[0]
 
-    return distances_by_class
+        real_distances_by_class[label].append(dist_real)
+        fake_distances_by_class[label].append(dist_fake)
 
-def shuffle_within_classes(dataset, seed=None):
+    #save to a csv file the results
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
+    with open(folder_path + f"/{current_time}_dtw_by_class.csv", "w") as f:
+        f.write("Class,Real DTW Distances,Fake DTW Distances\n")
+        for cls in real_distances_by_class.keys():
+            real_dists = real_distances_by_class[cls]
+            fake_dists = fake_distances_by_class[cls]
+            f.write(f"{class_names[cls]},{np.mean(real_dists)},{np.mean(fake_dists)}\n")
+            print(f"Class {class_names[cls]}: Real DTW: {np.mean(real_dists)}, Fake DTW: {np.mean(fake_dists)}")
+
+def shuffle_within_classes(X, Y, seed=None):
     """
     Embaralha as amostras em X_set dentro de cada classe definida em Y_set.
     
@@ -223,21 +280,14 @@ def shuffle_within_classes(dataset, seed=None):
     if seed is not None:
         np.random.seed(seed)
 
-    X_set = dataset.X_set
-    Y_set = dataset.Y_set
-    X_shuffled = X_set.copy()
+    X_shuffled = X.copy()
 
-    for cls in np.unique(Y_set):
-        idxs = np.where(Y_set == cls)[0]
+    for cls in np.unique(Y):
+        idxs = np.where(Y == cls)[0]
         shuffled_idxs = np.random.permutation(idxs)
-        X_shuffled[idxs] = X_set[shuffled_idxs]
+        X_shuffled[idxs] = X[shuffled_idxs]
 
-    dataset.X_set = X_shuffled
-    dataset.Y_set = Y_set
-    return dataset
-
-import numpy as np
-import matplotlib.pyplot as plt
+    return X_shuffled
 
 def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distribuição das Classes"):
     """
@@ -276,54 +326,140 @@ def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distr
     plt.tight_layout()
     plt.show()
 
+def plot_feature_distributions(real_data, fake_data, features_names, real_labels=None, fake_labels=None, n_channels=None, n_bins=50, folder_path='experiments/metrics'):
+    """
+    Plota a distribuição de cada canal (feature) para real vs sintético.
+    
+    Args:
+        real_data: np.ndarray (N, seq_len, n_channels)
+        fake_data: np.ndarray (M, seq_len, n_channels)
+        real_labels: np.ndarray (N,) ou None
+        fake_labels: np.ndarray (M,) ou None
+        n_channels: número de canais a plotar (se None, plota todos)
+        n_bins: número de bins para o histograma
+    """
+    assert real_data.shape[-1] == fake_data.shape[-1], "Número de canais deve coincidir!"
+    n_channels = n_channels or real_data.shape[-1]
+    
+    # Flattens (colapsa seq_len e samples)
+    real_flat = real_data.reshape(-1, real_data.shape[-1])
+    fake_flat = fake_data.reshape(-1, fake_data.shape[-1])
+
+    fig, axes = plt.subplots(n_channels, 1, figsize=(8, 3 * n_channels))
+    if n_channels == 1:
+        axes = [axes]
+
+    for i in range(n_channels):
+        ax = axes[i]
+        ax.hist(real_flat[:, i], bins=n_bins, density=True, alpha=0.6, label='Real')
+        ax.hist(fake_flat[:, i], bins=n_bins, density=True, alpha=0.6, label='Synthetic')
+        ax.set_title(f'Canal {features_names[i]} - Distribuição')
+        ax.legend()
+        ax.grid(True)
+
+    plt.tight_layout()
+    # Save plot with current time in the folder path
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
+    plot_path = f"{folder_path}/{current_time}_feature_distributions.pdf"
+    plt.savefig(plot_path, format='pdf')
+    plt.show()
+
+def compare_feature_entropy(real_data, fake_data, n_bins=50, folder_path='experiments/metrics'):
+    """
+    Calcula e compara a entropia marginal de cada canal (feature).
+    
+    Args:
+        real_data: np.ndarray (N, seq_len, n_channels)
+        fake_data: np.ndarray (M, seq_len, n_channels)
+        n_bins: número de bins para estimar a densidade
+        
+    Returns:
+        dict com entropias médias e diferença relativa
+    """
+    assert real_data.shape[-1] == fake_data.shape[-1], "Número de canais deve coincidir!"
+    n_channels = real_data.shape[-1]
+    
+    real_flat = real_data.reshape(-1, n_channels)
+    fake_flat = fake_data.reshape(-1, n_channels)
+    
+    ent_real, ent_fake = [], []
+    
+    for i in range(n_channels):
+        hist_real, _ = np.histogram(real_flat[:, i], bins=n_bins, density=True)
+        hist_fake, _ = np.histogram(fake_flat[:, i], bins=n_bins, density=True)
+
+        # remove zeros p/ evitar log(0)
+        hist_real = hist_real[hist_real > 0]
+        hist_fake = hist_fake[hist_fake > 0]
+
+        ent_real.append(entropy(hist_real))
+        ent_fake.append(entropy(hist_fake))
+    
+    ent_real = np.array(ent_real)
+    ent_fake = np.array(ent_fake)
+    
+    result = {
+        "mean_entropy_real": ent_real.mean(),
+        "mean_entropy_fake": ent_fake.mean(),
+        "relative_difference(%)": 100 * (ent_fake.mean() - ent_real.mean()) / ent_real.mean()
+    }
+    
+    print("📊 Entropia média real:", result["mean_entropy_real"])
+    print("📊 Entropia média sintética:", result["mean_entropy_fake"])
+    print("Δ Entropia relativa: %.2f%%" % result["relative_difference(%)"])
+    
+    # Plot comparativo por canal
+    plt.figure(figsize=(8,4))
+    plt.plot(ent_real, label="Real", marker='o')
+    plt.plot(ent_fake, label="Synthetic", marker='x')
+    plt.title("Entropia marginal por canal")
+    plt.xlabel("Canal")
+    plt.ylabel("Entropia (nats)")
+    plt.legend()
+    plt.grid(True)
+    # Save plot to folder
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
+    plot_path = f"{folder_path}/{current_time}_entropy_comparison.pdf"
+    plt.savefig(plot_path, format='pdf')
+    plt.show()
+    
+    return result
 
 def main():
+    ##### Generate data #####
     real_dataset = load_original_dataset(64, is_train=True, attack_only=False, shuffle=True).dataset
-    real_dataset.balance_classes(balance_test_set=True)
-
-    ##### GENERATORS #####
-    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_09_26_15_50_47/Model/checkpoint"
+    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_06_10_10_30/Model/checkpoint"
     #rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    #time_gan_model_path = "output/TimeGAN/stock/train/weights"
+    time_gan_model_path = "output/TimeGAN/stock/train/weights"
 
     #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
-    #generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
-    generator = TTSCGAN.SyntheticGenerator(64, 10, 5, tts_cgan_model_path)
+    generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
+    # generator = TTSCGAN.SyntheticGenerator(64, 10, 5, tts_cgan_model_path)
 
     fake_dataset = generator.generate(real_dataset.Y_test)
 
-    #####################
+    save_data_to_csv(fake_dataset, real_dataset.Y_test, real_dataset.features_names, "experiments/metrics/synthetic_data.csv")
+    # save_data_to_csv(real_dataset.X_test, real_dataset.Y_test, real_dataset.features_names, "experiments/metrics/real_data.csv")
+
+
     
     ####### DTW #########
-    #real_dataset_shuffled = load_and_preprocess_data(data_path, list(features_names), "Stage", seq_len, is_train=True, shuffle=True, seed=22)
-    #real_dataset_shuffled = shuffle_within_classes(real_dataset_shuffled)
+    compute_dtw_by_class(real_dataset.X_test, fake_dataset, real_dataset.Y_test, real_dataset.Y_test, real_dataset.classes_names)
 
-    #dynamic time warping
-    #_ = compute_dtw_by_class(real_dataset.X_test, fake_dataset, real_dataset.Y_test, real_dataset.Y_test)
+    ###### PCA TSE ######
+    plot_PCA_TSE(real_dataset.X_test, fake_dataset)
 
-    #####################
+    ##### data distribution ######
 
-    #### CLASSIFIERS ####
+    plot_feature_distributions(real_dataset.X_test, fake_dataset, real_dataset.features_names, n_channels=10)
 
-    #model = LSTMClassifier(n_channels=10, seq_length=30, hidden_dim=64, n_classes=5)
-   # trained_model = train_torch_model(real_dataset.X_train, real_dataset.Y_train, model)
-    #_, _, f1 = evaluate_torch_model(real_dataset.X_test, real_dataset.Y_test, trained_model).calculate_weighted_metrics()
-
-    #model = TransformerClassifier(n_channels=10, seq_length=30, n_classes=5)
-    #trained_model = train_torch_model(real_dataset.X_train, real_dataset.Y_train, model)
-    #_, _, f1 = evaluate_torch_model(real_dataset.X_test, real_dataset.Y_test, trained_model).calculate_weighted_metrics()
-    #print(f"F1 Score: {f1}")
-
-    #####################
-
+    ##### entropy ######
+    compare_feature_entropy(real_dataset.X_test, fake_dataset)
 
     ####### PLOTS #######
-
-    plot_PCA_TSE(real_dataset.X_test, fake_dataset)
     plot_samples(real_dataset.X_test[50:100], real_dataset.features_names, offset=0, path="images/real_samples.pdf", title="Amostras Reais")
     plot_samples(fake_dataset[50:100], real_dataset.features_names, offset=0, path="images/fake_samples.pdf", title="Amostras Sintéticas (TTS-CGAN)")
     #plot_class_distribution(real_dataset.Y_set, Y_set, class_names=["Benign", "exfiltration", "establish foothold", "lateral movement", "reconnaissance"])
-
     #####################
 
 

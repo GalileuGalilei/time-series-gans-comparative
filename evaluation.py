@@ -262,12 +262,13 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
 
         overall_results.append((gen.get_name, results))
         #um único csv por gerador
-        with open(os.path.join(save_path, f"{gen.get_name}_results.csv"), "w") as f:
+        current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
+        with open(os.path.join(save_path, current_time + f"{gen.get_name}_perclass_results.csv"), "w") as f:
             f.write(EvaluationReport.to_csv_header() + "\n")
             for report in results:
                 f.write(str(report) + "\n")
 
-    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
     with open(os.path.join(save_path,current_time + "_overall_results.csv"), "w") as f:
         f.write(f"GAN,Classifier,Data Type,Precision,Recall,F1 Score,Support,False Positives,False Negatives" + "\n")
         for gen_name, reports in overall_results:
@@ -321,8 +322,8 @@ def find_best_synthetic_data_balance(model):
     print(f"Melhor target ratio: {best_target_ratio} com f1 score: {best_score}")
 
 def main():
-    seq_len = 64
-    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_09_26_15_50_47/Model/checkpoint"
+    seq_len = 128
+    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_06_11_27_36/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
     time_gan_model_path = "output/TimeGAN/dapt_v5/train/weights"
 
@@ -341,7 +342,7 @@ def main():
                    TransformerClassifier(10, seq_len, 5)]
 
     # Roda os experimentos
-    experiments_battery(generators, classifiers, original_dataset, save_path="experiments/results")
+    experiments_battery(generators, classifiers, original_dataset, save_path="experiments/evaluation")
 
 if __name__ == "__main__":
     #set 'TF_ENABLE_ONEDNN_OPTS' to '0' to avoid issues with TensorFlow
