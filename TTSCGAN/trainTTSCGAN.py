@@ -92,7 +92,7 @@ def main_worker(gpu, ngpus_per_node, args):
             nn.init.constant_(m.bias.data, 0.0)
 
     #load dataset
-    seq_len = 64
+    seq_len = 128
     features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
     train_set = DAPT2020("data/dapt2020.csv", "Stage", seq_len, filter_features=features_to_train, is_train=True, attack_only=False)
     train_set.shuffle()

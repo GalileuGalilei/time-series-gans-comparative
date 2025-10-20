@@ -9,14 +9,14 @@ class SyntheticGenerator(IGenerator):
 
         opt = Options().parse()
 
-        opt.seq_len = 64
+        opt.seq_len = 128
         opt.data = "dapt2020"
         opt.resume = model_path
-        opt.iteration = 500
+        opt.iteration = 1000
         opt.hidden_dim = 32
         opt.num_layer = 3  
         opt.module = "gru" 
-        opt.batch_size = 32
+        opt.batch_size = 64
         opt.z_dim = 10
         opt.label_embed_dim = 10
         opt.num_classes = 5 

@@ -4,6 +4,7 @@ from classifiers.Classifiers import *
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from collections import Counter
 import os
+from argparse import ArgumentParser
 
 class PerClassEvaluation:
     def __init__(self, class_name, precision, recall, f1, support, false_positives, false_negatives):
@@ -217,13 +218,13 @@ def evaluate_torch_model(X_test_set, Y_test_set, model, classes_by_id=None, data
 def experiments_battery(generators : list[IGenerator], classifiers : list[IClassifier], original_dataset : DataLoader, save_path: str = "experiments/"):
     """
     Roda uma bateria de experimentos com diferentes geradores e salva os resultados.
+    Modificado para treinar apenas com dados reais e validar com dados semi-sintéticos.
     """
 
     #verifica se o caminho de salvamento existe, se não, cria
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
-    #todo: corrigir essa nomeclatura
     classes_by_id = original_dataset.dataset.classes_names
     overall_results = []
 
@@ -232,38 +233,29 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
         for clf in classifiers:
             print(f"Running experiment with generator: {gen.get_name} and classifier: {clf.get_name}")
 
-            # Como alguns modelos só funcionam em CPU ou GPU, escolhe a função de treinamento e avaliação apropriada
             (train_function, eval_function) = (train_torch_model, evaluate_torch_model) if clf.is_torch_model() else (train_cpu_model, evaluate_cpu_model)
 
-            # sintético
-            data_synt = generate_syntetic_dataset(original_dataset.dataset, gen)
-            trained_model = train_function(data_synt.dataset.X_train, data_synt.dataset.Y_train, clf.copy())
-            report = eval_function(original_dataset.dataset.X_test, original_dataset.dataset.Y_test, trained_model, classes_by_id, data_type='synthetic')
-            results.append(report)
-
-            print(report)
-
-            # semi-sintético
-            # {0: 0, 1: 0.2, 2: 0.2, 3: 0.25, 4: 0.35} => 86.6
-            # {0: 0, 1: 0.15, 2: 0.15, 3: 0.3, 4: 0.4} => 86.4
-            data_semi_synt = generate_semi_syntetic_dataset(original_dataset.dataset, gen, {0: 0, 1: 0.35, 2: 0.0, 3: 0.2, 4: 0.1})
-            trained_model = train_function(data_semi_synt.dataset.X_train, data_semi_synt.dataset.Y_train, clf.copy())
-            report = eval_function(original_dataset.dataset.X_test, original_dataset.dataset.Y_test, trained_model, classes_by_id, data_type='semi-synthetic')
-            results.append(report)
-
-            print(report)
-
-            # originais
+            print("Training classifier with REAL data only...")
             trained_model = train_function(original_dataset.dataset.X_train, original_dataset.dataset.Y_train, clf.copy())
-            report = eval_function(original_dataset.dataset.X_test, original_dataset.dataset.Y_test, trained_model, classes_by_id, data_type='original')
+            
+            print("Creating semi-synthetic validation dataset (50% real, 50% synthetic per class)...")
+            validation_dataset = generate_balanced_semi_synthetic_validation(original_dataset.dataset, gen)
+            
+            report = eval_function(validation_dataset.X_validation, validation_dataset.Y_validation, trained_model, classes_by_id, data_type='semi-synthetic-validation')
             results.append(report)
 
             print(report)
+
+            print("Validating with original test data...")
+            report_original = eval_function(original_dataset.dataset.X_test, original_dataset.dataset.Y_test, trained_model, classes_by_id, data_type='original-test')
+            results.append(report_original)
+
+            print(report_original)
 
         overall_results.append((gen.get_name, results))
         #um único csv por gerador
         current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
-        with open(os.path.join(save_path, current_time + f"{gen.get_name}_perclass_results.csv"), "w") as f:
+        with open(os.path.join(save_path, current_time + f"_{gen.get_name}_perclass_results.csv"), "w") as f:
             f.write(EvaluationReport.to_csv_header() + "\n")
             for report in results:
                 f.write(str(report) + "\n")
@@ -323,17 +315,17 @@ def find_best_synthetic_data_balance(model):
 
 def main():
     seq_len = 128
-    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_06_11_27_36/Model/checkpoint"
+    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_15_14_06_09/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    time_gan_model_path = "output/TimeGAN/dapt_v5/train/weights"
+    time_gan_model_path = "output/TimeGAN/stock/train/weights_good_results"
 
-    # Carrega os datasets originais
+    # Carrega os datasets originais (treino e teste separados)
     original_dataset = load_original_dataset(seq_len, is_train=True, attack_only=False, shuffle=True)
     
     # Cria os geradores
-    generators = [#RCGAN.SyntheticGenerator(model_path=rcgan_model_path, epoch=89),
-                  TTSCGAN.SyntheticGenerator(seq_len=seq_len, num_channels=10, num_classes=5, model_path=tts_cgan_model_path)]
-                  #TimeGAN.SyntheticGenerator(model_path=time_gan_model_path, data=original_dataset.dataset)]
+    generators = [# RCGAN.SyntheticGenerator(model_path=rcgan_model_path, epoch=89),
+                  # TTSCGAN.SyntheticGenerator(seq_len=seq_len, num_channels=10, num_classes=5, model_path=tts_cgan_model_path),
+                  TimeGAN.SyntheticGenerator(model_path=time_gan_model_path, data=original_dataset.dataset)]
 
     # Cria os classificadores
     classifiers = [RandomForestClassifierModel(50),
@@ -341,8 +333,14 @@ def main():
                    LSTMClassifier(10, seq_len, 64, 5),
                    TransformerClassifier(10, seq_len, 5)]
 
-    # Roda os experimentos
-    experiments_battery(generators, classifiers, original_dataset, save_path="experiments/evaluation")
+    print("="*80)
+    print("NOVO PROTOCOLO DE AVALIAÇÃO:")
+    print("- Treinamento: APENAS dados reais")
+    print("- Validação: 50% dados reais + 50% dados sintéticos para cada classe")
+    print("="*80)
+
+    # Roda os experimentos com novo protocolo
+    experiments_battery(generators, classifiers, original_dataset, save_path="experiments/evaluation_new_protocol")
 
 if __name__ == "__main__":
     #set 'TF_ENABLE_ONEDNN_OPTS' to '0' to avoid issues with TensorFlow

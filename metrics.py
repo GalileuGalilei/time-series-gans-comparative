@@ -11,7 +11,7 @@ from sklearn.manifold import TSNE
 from fastdtw import fastdtw as dtw
 from scipy.stats import entropy
 import pandas as pd
-
+from argparse import ArgumentParser
 
 def save_data_to_csv(data, labels, features_names, filename):
 
@@ -86,7 +86,7 @@ def plot_samples(data, features_names, labels=None, offset=0, path=None, title="
         else:
             plt.savefig(path)
 
-def plot_PCA_TSE(series1, series2, method='both', folder_path='experiments/metrics'):
+def plot_PCA_TSE(series1, series2, model, method='both', folder_path='experiments/metrics'):
     """
     Plota a comparação entre duas séries temporais usando PCA e T-SNE.
 
@@ -98,6 +98,8 @@ def plot_PCA_TSE(series1, series2, method='both', folder_path='experiments/metri
     Returns:
         None
     """
+    folder_path = folder_path + f"/{model}"
+
     if os.path.exists(folder_path) is False:
         os.makedirs(folder_path)
 
@@ -226,11 +228,13 @@ def plot_class_PCA_TSE(series1, series2, labels1, labels2, save_path="images/by_
 
 
 
-def compute_dtw_by_class(real_data, fake_data, labels_real, labels_fake, class_names, folder_path='experiments/metrics'):
+def compute_dtw_by_class(real_data, fake_data, labels_real, labels_fake, class_names, model, folder_path='experiments/metrics'):
     """
     computes the dtw os the fake sequences and compare with the real sequences of the same class. The most similiar
     is the dtw of the fake sequence with a real sequence of the same class, the better.                        
     """
+    folder_path = folder_path + f"/{model}"
+
     if os.path.exists(folder_path) is False:
         os.makedirs(folder_path)
 
@@ -326,7 +330,7 @@ def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distr
     plt.tight_layout()
     plt.show()
 
-def plot_feature_distributions(real_data, fake_data, features_names, real_labels=None, fake_labels=None, n_channels=None, n_bins=50, folder_path='experiments/metrics'):
+def plot_feature_distributions(real_data, fake_data, features_names, model, real_labels=None, fake_labels=None, n_channels=None, n_bins=50, folder_path='experiments/metrics'):
     """
     Plota a distribuição de cada canal (feature) para real vs sintético.
     
@@ -338,6 +342,8 @@ def plot_feature_distributions(real_data, fake_data, features_names, real_labels
         n_channels: número de canais a plotar (se None, plota todos)
         n_bins: número de bins para o histograma
     """
+    folder_path = folder_path + f"/{model}"
+
     assert real_data.shape[-1] == fake_data.shape[-1], "Número de canais deve coincidir!"
     n_channels = n_channels or real_data.shape[-1]
     
@@ -364,7 +370,7 @@ def plot_feature_distributions(real_data, fake_data, features_names, real_labels
     plt.savefig(plot_path, format='pdf')
     plt.show()
 
-def compare_feature_entropy(real_data, fake_data, n_bins=50, folder_path='experiments/metrics'):
+def compare_feature_entropy(real_data, fake_data, model, n_bins=50, folder_path='experiments/metrics'):
     """
     Calcula e compara a entropia marginal de cada canal (feature).
     
@@ -376,6 +382,8 @@ def compare_feature_entropy(real_data, fake_data, n_bins=50, folder_path='experi
     Returns:
         dict com entropias médias e diferença relativa
     """
+    folder_path = folder_path + f"/{model}"
+
     assert real_data.shape[-1] == fake_data.shape[-1], "Número de canais deve coincidir!"
     n_channels = real_data.shape[-1]
     
@@ -427,38 +435,54 @@ def compare_feature_entropy(real_data, fake_data, n_bins=50, folder_path='experi
 
 def main():
     ##### Generate data #####
-    real_dataset = load_original_dataset(64, is_train=True, attack_only=False, shuffle=True).dataset
-    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_06_10_10_30/Model/checkpoint"
-    #rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    time_gan_model_path = "output/TimeGAN/stock/train/weights"
+    parser = ArgumentParser()
+    parser.add_argument("--model", type=str, choices=["rcgan", "timegan", "ttscgan"], default="ttscgan")
+    args = parser.parse_args()
 
-    #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
-    generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
+    model = args.model
+
+    real_dataset = load_original_dataset(128, is_train=True, attack_only=False, shuffle=True).dataset
+
+    if model == "rcgan":
+        rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
+        generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
+    elif model == "timegan":
+        time_gan_model_path = "output/TimeGAN/stock/train/weights_good_results"
+        generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
+    else:  # ttscgan
+        tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_17_15_43_35/Model/checkpoint"
+        generator = TTSCGAN.SyntheticGenerator(128, 10, 5, tts_cgan_model_path)
+
+    #rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
+    # time_gan_model_path = "output/TimeGAN/stock/train/weights"
+
+    # generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
+    # generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
     # generator = TTSCGAN.SyntheticGenerator(64, 10, 5, tts_cgan_model_path)
 
     fake_dataset = generator.generate(real_dataset.Y_test)
 
-    save_data_to_csv(fake_dataset, real_dataset.Y_test, real_dataset.features_names, "experiments/metrics/synthetic_data.csv")
+    # save_data_to_csv(fake_dataset, real_dataset.Y_test, real_dataset.features_names, "experiments/metrics/synthetic_data.csv")
     # save_data_to_csv(real_dataset.X_test, real_dataset.Y_test, real_dataset.features_names, "experiments/metrics/real_data.csv")
 
 
     
     ####### DTW #########
-    compute_dtw_by_class(real_dataset.X_test, fake_dataset, real_dataset.Y_test, real_dataset.Y_test, real_dataset.classes_names)
+    compute_dtw_by_class(real_dataset.X_test, fake_dataset, real_dataset.Y_test, real_dataset.Y_test, real_dataset.classes_names, model)
 
     ###### PCA TSE ######
-    plot_PCA_TSE(real_dataset.X_test, fake_dataset)
+    plot_PCA_TSE(real_dataset.X_test, fake_dataset, model)
 
     ##### data distribution ######
 
-    plot_feature_distributions(real_dataset.X_test, fake_dataset, real_dataset.features_names, n_channels=10)
+    plot_feature_distributions(real_dataset.X_test, fake_dataset, real_dataset.features_names, model, n_channels=10)
 
     ##### entropy ######
-    compare_feature_entropy(real_dataset.X_test, fake_dataset)
+    compare_feature_entropy(real_dataset.X_test, fake_dataset, model)
 
     ####### PLOTS #######
-    plot_samples(real_dataset.X_test[50:100], real_dataset.features_names, offset=0, path="images/real_samples.pdf", title="Amostras Reais")
-    plot_samples(fake_dataset[50:100], real_dataset.features_names, offset=0, path="images/fake_samples.pdf", title="Amostras Sintéticas (TTS-CGAN)")
+    # plot_samples(real_dataset.X_test[50:100], real_dataset.features_names, offset=0, path="images/real_samples.pdf", title="Amostras Reais")
+    # plot_samples(fake_dataset[50:100], real_dataset.features_names, offset=0, path="images/fake_samples.pdf", title="Amostras Sintéticas (TTS-CGAN)")
     #plot_class_distribution(real_dataset.Y_set, Y_set, class_names=["Benign", "exfiltration", "establish foothold", "lateral movement", "reconnaissance"])
     #####################
 

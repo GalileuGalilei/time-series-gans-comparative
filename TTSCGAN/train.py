@@ -28,7 +28,7 @@ command = [
   "--world-size", "1",
   "--max_epoch", "15",
   "--rank", args.rank,
-  "--gpu", "cuda",
+  # "--gpu", "cuda",
   "--dataset", "dapt2020",
   "--bottom_width", "8",
   "--max_iter", "500000",
