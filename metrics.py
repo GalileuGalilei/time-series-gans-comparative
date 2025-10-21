@@ -450,7 +450,7 @@ def main():
         time_gan_model_path = "output/TimeGAN/stock/train/weights_good_results"
         generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
     else:  # ttscgan
-        tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_17_15_43_35/Model/checkpoint"
+        tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_21_13_09_56/Model/checkpoint"
         generator = TTSCGAN.SyntheticGenerator(128, 10, 5, tts_cgan_model_path)
 
     #rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"

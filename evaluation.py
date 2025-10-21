@@ -238,10 +238,10 @@ def experiments_battery(generators : list[IGenerator], classifiers : list[IClass
             print("Training classifier with REAL data only...")
             trained_model = train_function(original_dataset.dataset.X_train, original_dataset.dataset.Y_train, clf.copy())
             
-            print("Creating semi-synthetic validation dataset (50% real, 50% synthetic per class)...")
-            validation_dataset = generate_balanced_semi_synthetic_validation(original_dataset.dataset, gen)
+            print("Creating synthetic validation dataset (same class distribution as real test data)...")
+            validation_dataset = generate_synthetic_validation_dataset(original_dataset.dataset, gen)
             
-            report = eval_function(validation_dataset.X_validation, validation_dataset.Y_validation, trained_model, classes_by_id, data_type='semi-synthetic-validation')
+            report = eval_function(validation_dataset.X_validation, validation_dataset.Y_validation, trained_model, classes_by_id, data_type='synthetic-validation')
             results.append(report)
 
             print(report)
@@ -315,7 +315,7 @@ def find_best_synthetic_data_balance(model):
 
 def main():
     seq_len = 128
-    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_15_14_06_09/Model/checkpoint"
+    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_20_13_08_07/Model/checkpoint"
     rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
     time_gan_model_path = "output/TimeGAN/stock/train/weights_good_results"
 
@@ -324,7 +324,7 @@ def main():
     
     # Cria os geradores
     generators = [# RCGAN.SyntheticGenerator(model_path=rcgan_model_path, epoch=89),
-                  # TTSCGAN.SyntheticGenerator(seq_len=seq_len, num_channels=10, num_classes=5, model_path=tts_cgan_model_path),
+                  TTSCGAN.SyntheticGenerator(seq_len=seq_len, num_channels=10, num_classes=5, model_path=tts_cgan_model_path),
                   TimeGAN.SyntheticGenerator(model_path=time_gan_model_path, data=original_dataset.dataset)]
 
     # Cria os classificadores
@@ -334,9 +334,9 @@ def main():
                    TransformerClassifier(10, seq_len, 5)]
 
     print("="*80)
-    print("NOVO PROTOCOLO DE AVALIAÇÃO:")
+    print("PROTOCOLO DE AVALIAÇÃO MODIFICADO:")
     print("- Treinamento: APENAS dados reais")
-    print("- Validação: 50% dados reais + 50% dados sintéticos para cada classe")
+    print("- Validação: APENAS dados sintéticos (mesma distribuição de classes dos dados reais)")
     print("="*80)
 
     # Roda os experimentos com novo protocolo
