@@ -56,7 +56,7 @@ def train():
 
     opt.seq_len = seq_len
     opt.data = "dapt2020"
-    opt.iteration = 1000
+    opt.iteration = 5000
     opt.hidden_dim = 32
     opt.num_layer = 3  
     opt.module = "gru" 

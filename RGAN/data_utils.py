@@ -70,23 +70,24 @@ def get_samples_and_labels(settings):
     """
 
     #load dataset
-    seq_len = 64
+    seq_len = 128
     features_to_train = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s', 'Flow IAT Mean', 'Bwd Header Length', 'Fwd Header Length', 'Flow Bytes/s']
-    data_set = DAPT2020("data/output.csv", features_to_train, "Stage", seq_len, is_train=True, attack_only=False, shuffle=True, expand=False, one_hot=True)
-    # order by class
-    data_set.order_by_class()
+    data_set = DAPT2020("data/dapt2020.csv", "Stage", seq_len, filter_features=features_to_train, is_train=True, attack_only=False)
+    data_set.balance_classes()
+    data_set.shuffle()
+    data_set.one_hot_encode()
 
 
-    train_labels = data_set.Y_train_set
+    train_labels = data_set.Y_train
     validation_cutoff = int(len(train_labels) * 0.8)
-    test_labels = data_set.Y_test_set
+    test_labels = data_set.Y_test
     vali_labels = train_labels[validation_cutoff:]
 
     labels = dict()
     labels['train'], labels['vali'], labels['test'] = train_labels, vali_labels, test_labels
 
-    train = data_set.X_train_set
-    test = data_set.X_test_set
+    train = data_set.X_train
+    test = data_set.X_test
     vali = train[validation_cutoff:]
 
     samples = dict()

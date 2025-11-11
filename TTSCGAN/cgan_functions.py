@@ -93,46 +93,44 @@ def train(args, gen_net: nn.Module, dis_net: nn.Module, gen_optimizer, dis_optim
         
         # Adversarial ground truths
         real_imgs = real_imgs.type(torch.cuda.FloatTensor).cuda(args.gpu, non_blocking=True)
-#         real_img_labels = real_img_labels.type(torch.IntTensor)
         real_img_labels = real_img_labels.type(torch.LongTensor)
         real_img_labels = real_img_labels.cuda(args.gpu, non_blocking=True)
 
         # Sample noise as generator input
         noise = torch.cuda.FloatTensor(np.random.normal(0, 1, (real_imgs.shape[0], args.latent_dim))).cuda(args.gpu, non_blocking=True)
-        #noise = torch.rand(real_imgs.shape[0], args.latent_dim, device=args.gpu)
         fake_img_labels = torch.randint(0, num_classes , (real_imgs.shape[0],)).cuda(args.gpu, non_blocking=True)
 
         # ---------------------
-        #  Train Discriminator
+        #  Train Discriminator (n times)
         # ---------------------
-        
-        dis_net.zero_grad()
-        r_out_adv, r_out_cls = dis_net(real_imgs)
-        fake_imgs = gen_net(noise, fake_img_labels)
-        
-        assert fake_imgs.size() == real_imgs.size(), f"fake_imgs.size(): {fake_imgs.size()} real_imgs.size(): {real_imgs.size()}"
+        for _ in range(1):
+            dis_net.zero_grad()
+            r_out_adv, r_out_cls = dis_net(real_imgs)
+            fake_imgs = gen_net(noise, fake_img_labels)
+            
+            assert fake_imgs.size() == real_imgs.size(), f"fake_imgs.size(): {fake_imgs.size()} real_imgs.size(): {real_imgs.size()}"
 
-        f_out_adv, f_out_cls = dis_net(fake_imgs)
+            f_out_adv, f_out_cls = dis_net(fake_imgs)
 
-        # Compute loss for gradient penalty.
-        alpha = torch.rand(real_imgs.size(0), 1, 1, 1).cuda(args.gpu, non_blocking=True)  # bh, C, H, W
-        x_hat = (alpha * real_imgs.data + (1 - alpha) * fake_imgs.data).requires_grad_(True)
-        out_src, _ = dis_net(x_hat)
-        d_loss_gp = gradient_penalty(out_src, x_hat, args)
-        
-        d_real_loss = -torch.mean(r_out_adv)
-        d_fake_loss = torch.mean(f_out_adv)
-        d_adv_loss = d_real_loss + d_fake_loss 
-        
-        d_cls_loss = cls_criterion(r_out_cls, real_img_labels)
-        
-        d_loss = d_adv_loss + lambda_cls * d_cls_loss + lambda_gp * d_loss_gp
-        d_loss.backward()
-        
-        torch.nn.utils.clip_grad_norm_(dis_net.parameters(), 5.)
-        dis_optimizer.step()
+            # Compute loss for gradient penalty.
+            alpha = torch.rand(real_imgs.size(0), 1, 1, 1).cuda(args.gpu, non_blocking=True)  # bh, C, H, W
+            x_hat = (alpha * real_imgs.data + (1 - alpha) * fake_imgs.data).requires_grad_(True)
+            out_src, _ = dis_net(x_hat)
+            d_loss_gp = gradient_penalty(out_src, x_hat, args)
+            
+            d_real_loss = -torch.mean(r_out_adv)
+            d_fake_loss = torch.mean(f_out_adv)
+            d_adv_loss = d_real_loss + d_fake_loss 
+            
+            d_cls_loss = cls_criterion(r_out_cls, real_img_labels)
+            
+            d_loss = d_adv_loss + lambda_cls * d_cls_loss + lambda_gp * d_loss_gp
+            d_loss.backward()
+            
+            torch.nn.utils.clip_grad_norm_(dis_net.parameters(), 5.)
+            dis_optimizer.step()
 
-        writer.add_scalar('d_loss', d_loss.item(), global_steps) if args.rank == 0 else 0
+            writer.add_scalar('d_loss', d_loss.item(), global_steps) if args.rank == 0 else 0
 
         # -----------------
         #  Train Generator

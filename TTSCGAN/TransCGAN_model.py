@@ -166,8 +166,8 @@ class ClassificationHead(nn.Sequential):
         self.adv_head = nn.Sequential(
             Reduce('b n e -> b e', reduction='mean'),
             nn.LayerNorm(emb_size),
-            MiniBatch(emb_size, 9, 4),
-            nn.Linear(emb_size + 9 + 1, adv_classes) #mini batch(9) + std(1)
+            MiniBatch(emb_size, 19, 4),
+            nn.Linear(emb_size + 19 + 1, adv_classes) #mini batch(19) + std(1)
         )
         self.cls_head = nn.Sequential(
             Reduce('b n e -> b e', reduction='mean'),

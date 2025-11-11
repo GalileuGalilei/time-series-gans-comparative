@@ -10,6 +10,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from fastdtw import fastdtw as dtw
 from scipy.stats import entropy
+import os
 
 def plot_samples(data, features_names, labels=None, offset=0, path=None, title="Samples"):
     fig, axs = plt.subplots(2, 2, figsize=(10, 5))
@@ -100,7 +101,7 @@ def plot_PCA_TSE(series1, series2, method='both', folder_path='experiments/metri
         legend = ax.legend(*scatter.legend_elements())
         ax.add_artist(legend)
         legend.get_texts()[0].set_text("Real")
-        legend.get_texts()[1].set_text("Sintético")
+        legend.get_texts()[1].set_text("Synthetic")
         #legenda para os dados artificiais e os reais
 
         ax.set_title(f"{m}")
@@ -280,118 +281,171 @@ def plot_class_distribution(Y_real, Y_synth=None, class_names=None, title="Distr
     plt.tight_layout()
     plt.show()
 
-def plot_feature_distributions(real_data, fake_data, features_names, real_labels=None, fake_labels=None, n_channels=None, n_bins=50, folder_path='experiments/metrics'):
+def plot_feature_distributions(data, features_names, n_channels=None, n_bins=200, folder_path='experiments/metrics'):
     """
-    Plota a distribuição de cada canal (feature) para real vs sintético.
-    
-    Args:
-        real_data: np.ndarray (N, seq_len, n_channels)
-        fake_data: np.ndarray (M, seq_len, n_channels)
-        real_labels: np.ndarray (N,) ou None
-        fake_labels: np.ndarray (M,) ou None
-        n_channels: número de canais a plotar (se None, plota todos)
-        n_bins: número de bins para o histograma
+    Plot overlapping histograms (one color per channel) in a single axes.
+    Uses fixed axis limits across channels for consistent comparison.
     """
-    assert real_data.shape[-1] == fake_data.shape[-1], "Número de canais deve coincidir!"
-    n_channels = n_channels or real_data.shape[-1]
-    
-    # Flattens (colapsa seq_len e samples)
-    real_flat = real_data.reshape(-1, real_data.shape[-1])
-    fake_flat = fake_data.reshape(-1, fake_data.shape[-1])
+    total_channels = data.shape[-1]
 
-    fig, axes = plt.subplots(n_channels, 1, figsize=(8, 3 * n_channels))
-    if n_channels == 1:
-        axes = [axes]
+    # Normalize features_names to a list of labels
+    if features_names is None:
+        labels = [f"ch{i}" for i in range(total_channels)]
+    else:
+        labels = list(features_names)
 
-    for i in range(n_channels):
-        ax = axes[i]
-        ax.hist(real_flat[:, i], bins=n_bins, density=True, alpha=0.6, label='Real')
-        ax.hist(fake_flat[:, i], bins=n_bins, density=True, alpha=0.6, label='Synthetic')
-        ax.set_title(f'Canal {features_names[i]} - Distribuição')
-        ax.legend()
-        ax.grid(True)
+    # Determine how many channels to plot
+    max_labels = min(len(labels), total_channels)
+    if n_channels is None:
+        n_plot = max_labels
+    else:
+        n_plot = min(n_channels, max_labels, total_channels)
+
+    indices = list(range(n_plot))
+    labels = labels[:n_plot]
+
+    # Flatten samples x seq_len into a single axis per channel
+    real_flat = data.reshape(-1, total_channels)
+
+    # Compute global x limits and maximum density across selected channels for fixed axes
+    global_min, global_max = -1.1, 1.1
+    max_density = 15.0
+    valid_bins = np.linspace(global_min, global_max, n_bins + 1)
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+    cmap = plt.get_cmap('tab10')  # discrete palette with distinct colors
+
+    for i, idx in enumerate(indices):
+        color = cmap(i % 10)
+        arr = real_flat[:, idx]
+        arr = arr[np.isfinite(arr)]
+        if arr.size == 0:
+            continue
+        # Use the precomputed common bins to ensure consistent binning across features
+        ax.hist(arr, bins=valid_bins, density=True, alpha=0.5, color=color, label=labels[i])
+
+    ax.set_title('Feature Distributions')
+    ax.set_xlabel('Value')
+    ax.set_ylabel('Density')
+    ax.legend()
+    ax.grid(True)
+
+    # Apply fixed axis lengths (shared across channels)
+    x_margin = 0.02 * (global_max - global_min) if global_max > global_min else 0.1
+    ax.set_xlim(global_min - x_margin, global_max + x_margin)
+    y_margin = 0.05 * max_density
+    ax.set_ylim(0, max_density + y_margin)
 
     plt.tight_layout()
+
     # Save plot with current time in the folder path
+    os.makedirs(folder_path, exist_ok=True)
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
     plot_path = f"{folder_path}/{current_time}_feature_distributions.pdf"
     plt.savefig(plot_path, format='pdf')
     plt.show()
 
-def compare_feature_entropy(real_data, fake_data, n_bins=50, folder_path='experiments/metrics'):
+    return fig, ax
+
+def compare_feature_entropy_by_class(real_data, fake_data, real_labels, fake_labels, class_names=None, n_bins=50, folder_path='experiments/metrics'):
     """
-    Calcula e compara a entropia marginal de cada canal (feature).
-    
+    Calcula e plota a entropia marginal de cada canal (feature) para cada classe.
+
     Args:
         real_data: np.ndarray (N, seq_len, n_channels)
         fake_data: np.ndarray (M, seq_len, n_channels)
+        real_labels: np.ndarray (N,)
+        fake_labels: np.ndarray (M,)
+        class_names: lista de nomes das classes (opcional)
         n_bins: número de bins para estimar a densidade
-        
-    Returns:
-        dict com entropias médias e diferença relativa
     """
     assert real_data.shape[-1] == fake_data.shape[-1], "Número de canais deve coincidir!"
     n_channels = real_data.shape[-1]
-    
-    real_flat = real_data.reshape(-1, n_channels)
-    fake_flat = fake_data.reshape(-1, n_channels)
-    
-    ent_real, ent_fake = [], []
-    
-    for i in range(n_channels):
-        hist_real, _ = np.histogram(real_flat[:, i], bins=n_bins, density=True)
-        hist_fake, _ = np.histogram(fake_flat[:, i], bins=n_bins, density=True)
+    classes = np.unique(np.concatenate([real_labels, fake_labels]))
+    if class_names is None:
+        class_names = [str(c) for c in classes]
 
-        # remove zeros p/ evitar log(0)
-        hist_real = hist_real[hist_real > 0]
-        hist_fake = hist_fake[hist_fake > 0]
+    entropies_real = []
+    entropies_fake = []
 
-        ent_real.append(entropy(hist_real))
-        ent_fake.append(entropy(hist_fake))
-    
-    ent_real = np.array(ent_real)
-    ent_fake = np.array(ent_fake)
-    
-    result = {
-        "mean_entropy_real": ent_real.mean(),
-        "mean_entropy_fake": ent_fake.mean(),
-        "relative_difference(%)": 100 * (ent_fake.mean() - ent_real.mean()) / ent_real.mean()
-    }
-    
-    print("📊 Entropia média real:", result["mean_entropy_real"])
-    print("📊 Entropia média sintética:", result["mean_entropy_fake"])
-    print("Δ Entropia relativa: %.2f%%" % result["relative_difference(%)"])
-    
-    # Plot comparativo por canal
-    plt.figure(figsize=(8,4))
-    plt.plot(ent_real, label="Real", marker='o')
-    plt.plot(ent_fake, label="Synthetic", marker='x')
-    plt.title("Entropia marginal por canal")
-    plt.xlabel("Canal")
-    plt.ylabel("Entropia (nats)")
-    plt.legend()
-    plt.grid(True)
-    # Save plot to folder
+    for cls in classes:
+        real_flat = real_data[real_labels == cls].reshape(-1, n_channels)
+        fake_flat = fake_data[fake_labels == cls].reshape(-1, n_channels)
+        ent_real, ent_fake = [], []
+        for i in range(n_channels):
+            hist_real, _ = np.histogram(real_flat[:, i], bins=n_bins, density=True)
+            hist_fake, _ = np.histogram(fake_flat[:, i], bins=n_bins, density=True)
+            hist_real = hist_real[hist_real > 0]
+            hist_fake = hist_fake[hist_fake > 0]
+            ent_real.append(entropy(hist_real))
+            ent_fake.append(entropy(hist_fake))
+        entropies_real.append(ent_real)
+        entropies_fake.append(ent_fake)
+
+    entropies_real = np.array(entropies_real)  # shape: (n_classes, n_channels)
+    entropies_fake = np.array(entropies_fake)
+
+    # Plot
+    fig, axes = plt.subplots(len(classes), 1, figsize=(8, 4 * len(classes)), sharex=True)
+    if len(classes) == 1:
+        axes = [axes]
+    for idx, cls in enumerate(classes):
+        axes[idx].plot(entropies_real[idx], label="Real", marker='o')
+        axes[idx].plot(entropies_fake[idx], label="Synthetic", marker='x')
+        axes[idx].set_title(f"Marginal entropy per channel - Class {class_names[idx]}")
+        axes[idx].set_ylabel("Entropy")
+        axes[idx].legend()
+        axes[idx].grid(True)
+    axes[-1].set_xlabel("Channel")
+    plt.tight_layout()
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
-    plot_path = f"{folder_path}/{current_time}_entropy_comparison.pdf"
+    plot_path = f"{folder_path}/{current_time}_entropy_comparison_by_class.pdf"
     plt.savefig(plot_path, format='pdf')
     plt.show()
-    
-    return result
+
+    # Print summary and save CSV
+
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M")
+    os.makedirs(folder_path, exist_ok=True)
+    csv_path = f"{folder_path}/{current_time}_entropy_summary_by_class.csv"
+
+    with open(csv_path, "w") as f:
+        f.write("Class,Mean_Real,Mean_Fake,Relative_Diff_Percent,Entropies_Real,Entropies_Fake\n")
+        for idx, cls in enumerate(classes):
+            mean_real = np.mean(entropies_real[idx])
+            mean_fake = np.mean(entropies_fake[idx])
+            rel_diff = 100 * (mean_fake - mean_real) / mean_real if mean_real != 0 else 0
+
+            # join per-channel entropies with semicolon to keep them in one CSV column
+            ent_real_str = ";".join([f"{v:.6f}" for v in entropies_real[idx]])
+            ent_fake_str = ";".join([f"{v:.6f}" for v in entropies_fake[idx]])
+
+            f.write(f"{class_names[idx]},{mean_real:.6f},{mean_fake:.6f},{rel_diff:.2f},{ent_real_str},{ent_fake_str}\n")
+            print(f"Classe {class_names[idx]}: Entropia média real = {mean_real:.4f}, sintética = {mean_fake:.4f}, Δ relativa = {rel_diff:.2f}%")
+
+    return {
+        "entropies_real": entropies_real,
+        "entropies_fake": entropies_fake,
+        "classes": classes,
+        "class_names": class_names,
+        "csv_path": csv_path
+    }
 
 def main():
     ##### Generate data #####
     real_dataset = load_original_dataset(128, is_train=True, attack_only=False, shuffle=True).dataset
-    tts_cgan_model_path = "experiments/TTS_APT_CGAN_6_VAR_V_2025_10_06_17_56_48/Model/checkpoint"
-    #rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
-    time_gan_model_path = "output/TimeGAN/stock/train/weights"
+    tts_cgan_model_path = "experiments/TTS_APT_CGAN_10_MELHOR_2/Model/checkpoint"
+    rcgan_model_path = "RGAN/experiments/settings/dapt2020.txt"
+    time_gan_model_path = "output/TimeGAN/dapt_final/train/weights"
 
-    #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=89)
+    #generator = RCGAN.SyntheticGenerator(rcgan_model_path, epoch=59)
     generator = TimeGAN.SyntheticGenerator(time_gan_model_path, real_dataset)
     #generator = TTSCGAN.SyntheticGenerator(128, 10, 5, tts_cgan_model_path)
 
     fake_dataset = generator.generate(real_dataset.Y_test)
     
+    plt.rcParams['font.size'] = 14
+
     ####### DTW #########
     compute_dtw_by_class(real_dataset.X_test, fake_dataset, real_dataset.Y_test, real_dataset.Y_test, real_dataset.classes_names)
 
@@ -399,15 +453,17 @@ def main():
     plot_PCA_TSE(real_dataset.X_test, fake_dataset)
 
     ##### data distribution ######
-
-    plot_feature_distributions(real_dataset.X_test, fake_dataset, real_dataset.features_names, n_channels=10)
+    features_to_plot = ['Src Port', 'Dst Port', 'Bwd Init Win Bytes', 'Flow Packets/s', 'Fwd Packets/s', 'Bwd Packets/s']
+    #plot_feature_distributions(real_dataset.X_test, features_to_plot, n_channels=len(features_to_plot))
+    plot_feature_distributions(fake_dataset, features_to_plot, n_channels=len(features_to_plot))
 
     ##### entropy ######
-    compare_feature_entropy(real_dataset.X_test, fake_dataset)
-
+    #compare_feature_entropy_by_class(real_dataset.X_test, fake_dataset, real_dataset.Y_test, real_dataset.Y_test, real_dataset.classes_names)
+    
+ 
     ####### PLOTS #######
-    #plot_samples(real_dataset.X_test[50:100], real_dataset.features_names, offset=0, path="images/real_samples.pdf", title="Amostras Reais")
-    #plot_samples(fake_dataset[50:100], real_dataset.features_names, offset=0, path="images/fake_samples.pdf", title="Amostras Sintéticas (TTS-CGAN)")
+    plot_samples(real_dataset.X_test[80:100], real_dataset.features_names, offset=0, path="experiments/images/real_samples.pdf", title="Amostras Reais")
+    plot_samples(fake_dataset[80:100], real_dataset.features_names, offset=0, path="experiments/images/fake_samples.pdf", title="Amostras Sintéticas (TTS-CGAN)")
     #plot_class_distribution(real_dataset.Y_set, Y_set, class_names=["Benign", "exfiltration", "establish foothold", "lateral movement", "reconnaissance"])
     #####################
 

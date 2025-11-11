@@ -105,3 +105,116 @@ def generate_syntetic_dataset(orignal_dataset : DAPT2020, generator : IGenerator
 
     print("Generating synthetic dataset")
     return DataLoader(syntetic_dataset, batch_size=64)
+
+class ValidationDataset:
+    """
+    Dataset class specifically for validation with mixed real and synthetic data
+    """
+    def __init__(self, X_validation, Y_validation):
+        self.X_validation = X_validation
+        self.Y_validation = Y_validation
+
+def generate_balanced_semi_synthetic_validation(original_dataset : DAPT2020, generator : IGenerator):
+    """
+    Gera um dataset de validação semi-sintético balanceado:
+    50% dados reais + 50% dados sintéticos para cada classe
+    """
+    X_test = original_dataset.X_test
+    Y_test = original_dataset.Y_test
+    
+    num_classes = len(original_dataset.classes_names)
+    
+    X_validation_parts = []
+    Y_validation_parts = []
+    
+    for class_id in range(num_classes):
+        class_mask = Y_test == class_id
+        class_samples = X_test[class_mask]
+        class_labels = Y_test[class_mask]
+        
+        n_samples = len(class_samples)
+        
+        if n_samples == 0:
+            print(f"Warning: No samples found for class {class_id}")
+            continue
+        
+        n_real = n_samples // 2
+        n_synthetic = n_samples - n_real
+        
+        real_samples = class_samples[:n_real]
+        real_labels = class_labels[:n_real]
+        
+        synthetic_labels = np.full(n_synthetic, class_id)
+        synthetic_samples = generator.generate(synthetic_labels)
+        
+        class_X = np.concatenate([real_samples, synthetic_samples], axis=0)
+        class_Y = np.concatenate([real_labels, synthetic_labels], axis=0)
+        
+        X_validation_parts.append(class_X)
+        Y_validation_parts.append(class_Y)
+        
+        print(f"Class {original_dataset.classes_names[class_id]}: {n_real} real + {n_synthetic} synthetic = {len(class_X)} total")
+    
+    X_validation = np.concatenate(X_validation_parts, axis=0)
+    Y_validation = np.concatenate(Y_validation_parts, axis=0)
+    
+    np.random.seed(42)
+    indices = np.arange(len(X_validation))
+    np.random.shuffle(indices)
+    X_validation = X_validation[indices]
+    Y_validation = Y_validation[indices]
+    
+    print(f"Generated balanced semi-synthetic validation dataset: {len(X_validation)} samples total")
+    print(f"Class distribution: {np.bincount(Y_validation)}")
+    
+    return ValidationDataset(X_validation, Y_validation)
+
+def generate_synthetic_validation_dataset(original_dataset : DAPT2020, generator : IGenerator):
+    """
+    Gera um dataset de validação puramente sintético com a mesma distribuição de classes
+    que o dataset de validação real (dados de teste originais)
+    """
+    # Usar dados de teste como referência para distribuição de classes
+    X_test = original_dataset.X_test
+    Y_test = original_dataset.Y_test
+    
+    num_classes = len(original_dataset.classes_names)
+    
+    # Contar quantas amostras existem para cada classe nos dados reais de teste
+    class_counts = np.bincount(Y_test, minlength=num_classes)
+    
+    X_validation_parts = []
+    Y_validation_parts = []
+    
+    for class_id in range(num_classes):
+        n_samples = class_counts[class_id]
+        
+        if n_samples == 0:
+            print(f"Warning: No samples found for class {class_id} in test data")
+            continue
+        
+        # Gerar dados sintéticos para essa classe com o mesmo número de amostras
+        synthetic_labels = np.full(n_samples, class_id)
+        synthetic_samples = generator.generate(synthetic_labels)
+        
+        X_validation_parts.append(synthetic_samples)
+        Y_validation_parts.append(synthetic_labels)
+        
+        print(f"Class {original_dataset.classes_names[class_id]}: {n_samples} synthetic samples")
+    
+    # Combinar todas as classes
+    X_validation = np.concatenate(X_validation_parts, axis=0)
+    Y_validation = np.concatenate(Y_validation_parts, axis=0)
+    
+    # Embaralhar o dataset final
+    np.random.seed(42)
+    indices = np.arange(len(X_validation))
+    np.random.shuffle(indices)
+    X_validation = X_validation[indices]
+    Y_validation = Y_validation[indices]
+    
+    print(f"Generated purely synthetic validation dataset: {len(X_validation)} samples total")
+    print(f"Class distribution: {np.bincount(Y_validation)}")
+    print(f"Original test class distribution: {class_counts}")
+    
+    return ValidationDataset(X_validation, Y_validation)

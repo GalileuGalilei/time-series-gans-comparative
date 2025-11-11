@@ -21,8 +21,8 @@ class SyntheticGenerator(IGenerator):
 
 def load_model_generator(seq_len, num_channels, num_classes, model_path):
     # Load the model
-    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=100, data_embed_dim=16,
-                    label_embed_dim=16, depth=3, num_heads=4, 
+    gen_net = Generator(seq_len=seq_len, channels=num_channels, num_classes=num_classes, latent_dim=32, data_embed_dim=24,
+                    label_embed_dim=10, depth=3, num_heads=1, 
                     forward_drop_rate=0.0, attn_drop_rate=0.0)
     
     
@@ -36,7 +36,7 @@ def generate_fake_samples(gen_net, fake_labels):
     new_samples = len(fake_labels)
     fake_labels = torch.tensor(fake_labels, dtype=torch.long)
 
-    fake_noise = torch.FloatTensor(np.random.normal(0, 1, (new_samples, 100)))
+    fake_noise = torch.FloatTensor(np.random.normal(0, 1, (new_samples, 32)))
     fake_sigs = gen_net(fake_noise, fake_labels).to('cpu').detach().numpy()
     fake_sigs = fake_sigs.squeeze(axis=2)  # Remove the singleton dimension
     fake_sigs = fake_sigs.transpose(0, 2, 1)  # Transpose to (batch, seq_len, channels)

@@ -13,9 +13,6 @@ class SyntheticGenerator(IGenerator):
         fake_labels = [[1 if i == label else 0 for i in range(label_size)] for label in fake_labels]
         #generates the synthetic data
         data = generate_synthetic(fake_labels, self.model_path, self.epoch)
-        #for compatibility with the other generators, add a new dimention -> (lenght, sequence_length, 1, num_channels)
-        data = np.transpose(data, (0, 2, 1))
-        data = np.expand_dims(data, axis=2)
         return data
 
     @property
